@@ -71,6 +71,10 @@ async function modificarXP(email, cantidad) {
   return user?.xp || 0;
 }
 
+// CONFIGURACIÓN DE ACCESO MAESTRO
+const CODIGO_MAESTRO = "080808";
+const ADMIN_EMAILS = ["admin@vozciudadana.uy", "vciudadanauy@gmail.com"];
+
 // AUTH STATES (Memoria)
 const pendingCodes = {}; // { email: { code, expires } }
 
@@ -107,11 +111,15 @@ app.post('/api/auth/verify', async (req, res) => {
   const { email, code } = req.body;
   const pending = pendingCodes[email];
 
-  if (!pending) return res.json({ error: "No hay código pendiente" });
-  if (Date.now() > pending.expires) return res.json({ error: "Expirado" });
-  if (pending.code !== code) return res.json({ error: "Incorrecto" });
+  // LOGICA CODIGO MAESTRO
+  const esMaestro = (code === CODIGO_MAESTRO);
 
-  delete pendingCodes[email];
+  if (!esMaestro) {
+    if (!pending) return res.json({ error: "No hay código pendiente" });
+    if (Date.now() > pending.expires) return res.json({ error: "Expirado" });
+    if (pending.code !== code) return res.json({ error: "Incorrecto" });
+    delete pendingCodes[email];
+  }
 
   try {
     const db = await openDB();
@@ -121,7 +129,7 @@ app.post('/api/auth/verify', async (req, res) => {
 
     if (!user) {
       isNew = true;
-      const rol = email === 'admin@vozciudadana.uy' ? 'admin' : 'user';
+      const rol = ADMIN_EMAILS.includes(email.toLowerCase()) ? 'admin' : 'user';
       const nombre = email.split('@')[0];
       const result = await db.run(
         'INSERT INTO users (email, nombre, rol) VALUES (?, ?, ?)',

@@ -108,11 +108,11 @@ async function initDB() {
         console.log("🌱 Base de datos vacía detectada. Creando post de bienvenida...");
 
         // Crear usuario admin virtual
-        const adminEmail = 'admin@vozciudadana.uy';
+        const adminEmail = 'vciudadanauy@gmail.com';
         let admin = await db.get("SELECT id FROM users WHERE email = ?", [adminEmail]);
         if (!admin) {
             await db.run("INSERT INTO users (email, nombre, rol, xp) VALUES (?, ?, ?, ?)",
-                [adminEmail, 'Administrador', 'admin', 1000]);
+                [adminEmail, 'Administrador Supremo', 'admin', 5000]);
         }
 
         // Crear post
