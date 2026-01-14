@@ -55,65 +55,137 @@ function cerrarAuth() {
 function resetAuth() {
     document.getElementById('auth-step-1').style.display = 'block';
     document.getElementById('auth-step-2').style.display = 'none';
-    document.getElementById('auth-email').value = '';
-    document.getElementById('auth-code').value = '';
+    document.getElementById('auth-cedula').value = '';
+    document.getElementById('auth-nombre').value = '';
+    document.getElementById('auth-name-group').style.display = 'none';
 }
 
-async function enviarCodigoAuth() {
-    const email = document.getElementById('auth-email').value.trim();
-    if (!email) return showToast("Ingresa un correo válido", "error");
+// VALIDADOR CI URUGUAYA (Front)
+function validarCI(ci) {
+    const ciClean = ci.toString().replace(/\D/g, '');
+    if (ciClean.length < 7 || ciClean.length > 8) return false;
+    const arrCI = ciClean.split('').map(Number);
+    if (arrCI.length === 7) arrCI.unshift(0);
+    const factores = [2, 9, 8, 7, 6, 3, 4];
+    let suma = 0;
+    for (let i = 0; i < 7; i++) suma += arrCI[i] * factores[i];
+    const digitoVerificadorCalculado = (10 - (suma % 10)) % 10;
+    return digitoVerificadorCalculado === arrCI[7];
+}
+
+async function procesarCI() {
+    const cedula = document.getElementById('auth-cedula').value.trim();
+    if (!validarCI(cedula)) return showToast("Cédula uruguaya inválida", "error");
 
     try {
-        const res = await fetch(`${API_URL}/auth/code`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
+        const res = await fetch(`${API_URL}/auth/check-ci/${cedula}`);
         const data = await res.json();
 
-        if (data.success) {
-            document.getElementById('auth-step-1').style.display = 'none';
-            document.getElementById('auth-step-2').style.display = 'block';
-            document.getElementById('display-email').innerText = email;
-            showToast("Código enviado. Revisa la consola del servidor (simulación).", "success");
+        if (data.exists && data.hasPasskey) {
+            prepararPaso2(cedula, "login");
+        } else if (data.exists && !data.hasPasskey) {
+            showToast("Vimos que existes, pero necesitas enrolar tu biometría.", "info");
+            document.getElementById('auth-name-group').style.display = 'block';
+            document.getElementById('auth-nombre').value = data.nombre;
+            document.getElementById('btn-auth-next').onclick = () => prepararPaso2(cedula, "register");
         } else {
-            showToast(data.error, "error");
+            showToast("Primera vez en Voz Ciudadana. ¡Bienvenido!", "info");
+            document.getElementById('auth-name-group').style.display = 'block';
+            document.getElementById('btn-auth-next').onclick = () => {
+                const nombre = document.getElementById('auth-nombre').value.trim();
+                if (!nombre) return showToast("Dinos tu nombre para continuar", "error");
+                prepararPaso2(cedula, "register", nombre);
+            };
         }
     } catch (e) {
-        showToast("Error de conexión", "error");
+        showToast("Error al verificar identidad", "error");
     }
 }
 
-async function verificarCodigoAuth() {
-    const email = document.getElementById('auth-email').value.trim();
-    const code = document.getElementById('auth-code').value.trim();
+function prepararPaso2(cedula, modo, nombre = "") {
+    document.getElementById('auth-step-1').style.display = 'none';
+    document.getElementById('auth-step-2').style.display = 'block';
 
-    try {
-        const res = await fetch(`${API_URL}/auth/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, code })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            currentUser = data.user;
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            cerrarAuth();
-            actualizarInterfazUsuario();
-            showToast(`Bienvenido, ${currentUser.nombre}`);
-
-            // Si es nuevo, sugerir completar perfil
-            if (data.isNew || currentUser.nombre === currentUser.email.split('@')[0]) {
-                abrirPerfil();
-            }
-        } else {
-            showToast(data.error, "error");
-        }
-    } catch (e) {
-        showToast("Error al verificar", "error");
+    const btn = document.getElementById('btn-biometric');
+    if (modo === 'register') {
+        btn.onclick = () => iniciarRegistroBiometrico(cedula, nombre);
+        btn.innerText = "Registrar Huella/Cara";
+    } else {
+        btn.onclick = () => iniciarLoginBiometrico(cedula);
+        btn.innerText = "Usar Mi Huella/Cara";
     }
 }
+
+async function iniciarRegistroBiometrico(cedula, nombre) {
+    try {
+        const resOptions = await fetch(`${API_URL}/auth/register-options`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedula, nombre })
+        });
+        const options = await resOptions.json();
+
+        // startRegistration es parte de @simplewebauthn/browser (umd bundle)
+        const attestation = await SimpleWebAuthnBrowser.startRegistration(options);
+
+        const resVerify = await fetch(`${API_URL}/auth/register-verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedula, nombre, body: attestation })
+        });
+        const data = await resVerify.json();
+
+        if (data.verified) {
+            loginExitoso(data.user);
+            showToast("¡Identidad Ciudadana Creada!", "success");
+        } else {
+            showToast("Fallo al crear la llave de seguridad", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Biometría cancelada o no soportada", "error");
+    }
+}
+
+async function iniciarLoginBiometrico(cedula) {
+    try {
+        const resOptions = await fetch(`${API_URL}/auth/login-options`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedula })
+        });
+        const options = await resOptions.json();
+
+        const assertion = await SimpleWebAuthnBrowser.startAuthentication(options);
+
+        const resVerify = await fetch(`${API_URL}/auth/login-verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedula, body: assertion })
+        });
+        const data = await resVerify.json();
+
+        if (data.verified) {
+            loginExitoso(data.user);
+            showToast("Bienvenido de vuelta", "success");
+        } else {
+            showToast("Verificación de identidad fallida", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Error en biometría", "error");
+    }
+}
+
+function loginExitoso(user) {
+    currentUser = user;
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    cerrarAuth();
+    actualizarInterfazUsuario();
+    cargarPublicaciones();
+}
+
+// Eliminadas funciones de código por email
 
 function logout() {
     currentUser = null;
@@ -149,7 +221,7 @@ function actualizarInterfazUsuario() {
 function abrirPerfil() {
     if (!currentUser) return;
     document.getElementById('profile-name').value = currentUser.nombre || '';
-    document.getElementById('profile-email').value = currentUser.email || '';
+    document.getElementById('profile-email').value = currentUser.cedula || ''; // Mostramos cédula en el campo bloqueado
     document.getElementById('profile-dept').value = currentUser.departamento || '';
 
     // Mostrar foto actual o inicial de nombre
@@ -170,6 +242,21 @@ function abrirPerfil() {
         document.getElementById('profile-xp-actual').textContent = currentUser.xpActual || 0;
         document.getElementById('profile-xp-siguiente').textContent = currentUser.xpSiguiente || 40;
         document.getElementById('profile-xp-bar').style.width = (currentUser.progreso || 0) + '%';
+    }
+
+    // Estado Verificación CI
+    const statusBox = document.getElementById('verify-status-box');
+    const prompt = document.getElementById('verify-prompt');
+    const success = document.getElementById('verify-success');
+
+    if (currentUser.ci_verified) {
+        prompt.style.display = 'none';
+        success.style.display = 'block';
+        statusBox.className = 'status-box-verified';
+    } else {
+        prompt.style.display = 'block';
+        success.style.display = 'none';
+        statusBox.className = 'status-box-pending';
     }
 
     const modal = document.getElementById('profileModal');
@@ -258,7 +345,7 @@ async function guardarPerfil() {
     console.log("Eliminar foto:", fotoEliminadaFlag);
 
     const payload = {
-        email: currentUser.email,
+        cedula: currentUser.cedula,
         nombre: nuevoNombre,
         departamento: nuevoDepto,
         foto: dataFoto,
@@ -298,6 +385,68 @@ async function guardarPerfil() {
     }
 }
 
+async function procesarVerificacionCI(input) {
+    if (!input.files || !input.files[0]) return;
+
+    const file = input.files[0];
+    const loading = document.getElementById('verify-loading');
+    const prompt = document.getElementById('verify-prompt');
+
+    loading.style.display = 'block';
+    prompt.style.display = 'none';
+
+    try {
+        // Tesseract OCR Procesamiento
+        const { data: { text } } = await Tesseract.recognize(file, 'spa', {
+            logger: m => console.log("[OCR]", m.status, Math.round(m.progress * 100) + "%")
+        });
+
+        console.log("Texto extraído:", text);
+
+        // Limpiar la cédula para comparar (quitar puntos y guiones)
+        const ciLimpia = currentUser.cedula.replace(/\D/g, '');
+        const textoLimpio = text.replace(/\D/g, '');
+
+        if (textoLimpio.includes(ciLimpia)) {
+            // ¡ÉXITO LOCAL! Ahora enviar al backend para persistir y marcar como verificado
+            showToast("OCR: Cédula detectada correctamente.", "success");
+
+            // Convertir a base64 para envío
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64 = reader.result;
+                const res = await fetch(`${API_URL}/user/verify-ci`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cedula: currentUser.cedula, fotoCI: base64 })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    currentUser.ci_verified = 1;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    loading.style.display = 'none';
+                    document.getElementById('verify-success').style.display = 'block';
+                    showToast("¡Ya eres Ciudadano Verificado!", "success");
+                    actualizarInterfazUsuario();
+                } else {
+                    throw new Error(data.error);
+                }
+            };
+            reader.readAsDataURL(file);
+        } else {
+            loading.style.display = 'none';
+            prompt.style.display = 'block';
+            showToast("No pudimos leer tu cédula claramente. Intenta con más luz.", "error");
+        }
+    } catch (e) {
+        console.error(e);
+        loading.style.display = 'none';
+        prompt.style.display = 'block';
+        showToast("Error en el escaneo: " + e.message, "error");
+    }
+}
+
 
 // =========================================
 // 2. PUBLICACIONES (API)
@@ -318,6 +467,11 @@ function abrirModal(tipo) {
     if (!currentUser) {
         showToast("Debes iniciar sesión para publicar.", "warning");
         abrirAuth();
+        return;
+    }
+    if (!currentUser.ci_verified) {
+        showToast("Debes verificar tu identidad con tu Cédula para publicar.", "warning");
+        abrirPerfil();
         return;
     }
     document.getElementById('post-type').value = tipo;
@@ -360,7 +514,7 @@ async function guardarPost(e) {
         multimedia: multimedia,
         fecha: new Date().toLocaleDateString(),
         autor: currentUser.nombre,
-        emailAutor: currentUser.email,
+        cedulaAutor: currentUser.cedula,
         anonimo: document.getElementById('post-anonimo').checked,
         votos: 0,
         estado: 'Pendiente',
@@ -415,7 +569,7 @@ function actualizarFeed() {
         }).join('') || '';
 
         // Verificar si usuario votó
-        const userVoted = currentUser && p.votosIds && p.votosIds.includes(currentUser.email);
+        const userVoted = currentUser && p.votosIds && p.votosIds.includes(currentUser.cedula);
 
         // Formateo de fecha seguro
         let fechaStr = p.fecha;
@@ -438,7 +592,7 @@ function actualizarFeed() {
                     <div class="post-content">
                         <div class="post-meta">
                             ${badgeEstado}
-                            <span class="post-author"><i class="fas fa-user-circle"></i> ${autorNombre}</span>
+                            <span class="post-author"><i class="fas fa-user-circle"></i> ${autorNombre} ${p.ci_verified ? '<i class="fas fa-check-circle" style="color:var(--secondary); font-size:0.8rem;" title="Ciudadano Verificado"></i>' : ''}</span>
                             <small>• ${p.tipo || 'General'} • ${p.dept || 'Uruguay'} • ${fechaStr}</small>
                             ${isAdmin ? `<span class="admin-only" onclick="borrarPost(${p.id})">Borrar</span>` : ''}
                         </div>
@@ -471,12 +625,16 @@ async function votarPost(id) {
         showToast("Debes iniciar sesión para votar", "warning");
         return abrirAuth();
     }
+    if (!currentUser.ci_verified) {
+        showToast("Debes verificar tu identidad para votar.", "warning");
+        return abrirPerfil();
+    }
 
     try {
         const res = await fetch(`${API_URL}/posts/${id}/vote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: currentUser.email })
+            body: JSON.stringify({ cedula: currentUser.cedula })
         });
         const data = await res.json();
         if (data.success) {
@@ -506,7 +664,7 @@ async function comentar(postId, inputElement) {
         const res = await fetch(`${API_URL}/posts/${postId}/comment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ texto, autor: currentUser.nombre, email: currentUser.email })
+            body: JSON.stringify({ texto, autor: currentUser.nombre, cedula: currentUser.cedula })
         });
         if ((await res.json()).success) {
             inputElement.value = '';
@@ -524,7 +682,7 @@ async function votarComentario(postId, comId) {
         const res = await fetch(`${API_URL}/posts/${postId}/comment/${comId}/vote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: currentUser.email })
+            body: JSON.stringify({ cedula: currentUser.cedula })
         });
         if ((await res.json()).success) {
             cargarPublicaciones();

@@ -11,7 +11,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@simplewebauthn/server": "^13.2.2",
     "body-parser": "^2.2.2",
+    "cloudinary": "^2.8.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "node-fetch": "^2.7.0",

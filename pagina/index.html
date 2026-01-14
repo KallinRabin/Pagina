@@ -11,6 +11,9 @@
     <!-- Cropper.js para recorte profesional de fotos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <!-- WebAuthn y OCR para Identidad -->
+    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+    <script src='https://unpkg.com/tesseract.js@v4.0.1/dist/tesseract.min.js'></script>
 </head>
 
 <body>
@@ -131,24 +134,32 @@
             </div>
 
             <div id="auth-step-1">
-                <h2>Ingreso / Registro</h2>
-                <p>Ingresa tu correo para recibir un código de acceso.</p>
+                <h2>Identidad Ciudadana</h2>
+                <p>Ingresa tu Cédula de Identidad (Uruguay)</p>
                 <div class="input-group">
-                    <input type="email" id="auth-email" placeholder="tu@email.com" required style="text-align:center;">
+                    <input type="text" id="auth-cedula" placeholder="1.234.567-8" required
+                        style="text-align:center; font-size: 1.5rem;" maxlength="11">
                 </div>
-                <button class="btn-submit" onclick="enviarCodigoAuth()" style="width: 100%;">Enviar Código</button>
+                <!-- Paso de nombre solo si es registro -->
+                <div id="auth-name-group" style="display:none;">
+                    <p>¡Bienvenido! Danos tu nombre para registrarte:</p>
+                    <div class="input-group">
+                        <input type="text" id="auth-nombre" placeholder="Nombre y Apellido">
+                    </div>
+                </div>
+                <button id="btn-auth-next" class="btn-submit" onclick="procesarCI()"
+                    style="width: 100%;">Continuar</button>
             </div>
 
             <div id="auth-step-2" style="display:none;">
-                <h2>Verificar Código</h2>
-                <p>Hemos enviado un código a <b id="display-email"></b></p>
-                <div class="input-group">
-                    <input type="text" id="auth-code" placeholder="123456" maxlength="6"
-                        style="text-align:center; letter-spacing: 5px; font-size: 1.5rem;">
+                <h2>Verificación Biométrica</h2>
+                <p>Usa tu huella, cara o PIN para entrar.</p>
+                <div style="font-size: 4rem; margin: 20px 0; color: var(--primary);">
+                    <i class="fas fa-fingerprint"></i>
                 </div>
-                <button class="btn-submit" onclick="verificarCodigoAuth()" style="width: 100%;">Entrar</button>
-                <p style="font-size:0.8rem; margin-top:10px; cursor:pointer; color:blue;" onclick="resetAuth()">Volver /
-                    Reenviar</p>
+                <button class="btn-submit" id="btn-biometric" style="width: 100%;">Usar Biometría</button>
+                <p style="font-size:0.8rem; margin-top:10px; cursor:pointer; color:blue;" onclick="resetAuth()">Volver
+                </p>
             </div>
         </div>
     </div>
@@ -231,6 +242,39 @@
                         <span id="profile-xp-actual">0</span> / <span id="profile-xp-siguiente">40</span> XP
                     </div>
                 </div>
+            </div>
+
+            <!-- SECCIÓN: VERIFICACIÓN DE IDENTIDAD -->
+            <div id="verification-section"
+                style="margin: 20px 0; padding: 15px; border: 2px dashed #e0e0e0; border-radius: 12px; background: #fafafa;">
+                <label style="font-weight: bold; color: var(--secondary); display: block; margin-bottom: 10px;">
+                    <i class="fas fa-id-card"></i> Verificación de Identidad (OCR)
+                </label>
+
+                <div id="verify-status-box" style="text-align: center;">
+                    <div id="verify-loading" style="display:none; padding: 10px;">
+                        <i class="fas fa-spinner fa-spin" style="color: var(--primary); font-size: 1.5rem;"></i>
+                        <p style="margin-top:10px; font-size: 0.9rem;">Leyendo tu Cédula...<br><small>(Esto puede tardar
+                                unos segundos)</small></p>
+                    </div>
+
+                    <div id="verify-prompt">
+                        <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Para publicar o votar,
+                            necesitamos confirmar que eres un ciudadano real.</p>
+                        <button class="btn-submit" onclick="document.getElementById('ci-photo-input').click()"
+                            style="background: var(--secondary); font-size: 0.9rem; padding: 8px 20px; width: auto;">
+                            <i class="fas fa-camera"></i> Validar mi Cédula
+                        </button>
+                    </div>
+
+                    <div id="verify-success" style="display:none; color: #28a745;">
+                        <i class="fas fa-check-circle" style="font-size: 3rem;"></i>
+                        <h4 style="margin: 10px 0 5px;">¡Ciudadano Verificado!</h4>
+                        <p style="font-size: 0.8rem; opacity: 0.8;">Tu identidad ha sido confirmada automáticamente.</p>
+                    </div>
+                </div>
+                <input type="file" id="ci-photo-input" accept="image/*" style="display:none;"
+                    onchange="procesarVerificacionCI(this)" capture="environment">
             </div>
 
             <button class="btn-submit" onclick="guardarPerfil()"

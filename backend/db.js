@@ -17,25 +17,38 @@ async function initDB() {
     await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
+            cedula TEXT UNIQUE,
+            email TEXT,
             nombre TEXT NOT NULL,
             rol TEXT DEFAULT 'user',
-            foto_perfil TEXT, /* Columna nueva */
+            foto_perfil TEXT,
+            departamento TEXT,
+            xp INTEGER DEFAULT 0,
+            webauthn_id TEXT,
+            public_key TEXT,
+            sign_count INTEGER DEFAULT 0,
+            ci_verified INTEGER DEFAULT 0,
+            ci_photo_url TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             deleted_at DATETIME
         )
     `);
 
     // Migración manual por si la tabla ya existía sin las columnas nuevas
-    try {
-        await db.run("ALTER TABLE users ADD COLUMN foto_perfil TEXT");
-    } catch (e) { }
-    try {
-        await db.run("ALTER TABLE users ADD COLUMN departamento TEXT");
-    } catch (e) { }
-    try {
-        await db.run("ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0");
-    } catch (e) { }
+    // Migración manual por si la tabla ya existía
+    const columns = [
+        "ALTER TABLE users ADD COLUMN cedula TEXT UNIQUE",
+        "ALTER TABLE users ADD COLUMN departamento TEXT",
+        "ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN webauthn_id TEXT",
+        "ALTER TABLE users ADD COLUMN public_key TEXT",
+        "ALTER TABLE users ADD COLUMN sign_count INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN ci_verified INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN ci_photo_url TEXT"
+    ];
+    for (const sql of columns) {
+        try { await db.run(sql); } catch (e) { }
+    }
 
     // 2. PUBLICACIONES (POSTS)
     await db.exec(`
@@ -91,12 +104,13 @@ async function initDB() {
     // target_type: 'post' o 'comment'
     await db.exec(`
         CREATE TABLE IF NOT EXISTS votes (
-            user_email TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
             target_id INTEGER NOT NULL,
             target_type TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             deleted_at DATETIME,
-            PRIMARY KEY (user_email, target_id, target_type)
+            PRIMARY KEY (user_id, target_id, target_type),
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     `);
 
