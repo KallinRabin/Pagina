@@ -1,5 +1,8 @@
 // --- CONFIGURACIÓN E INICIO ---
-const API_URL = "http://localhost:3000/api";
+// Si estamos en local usa localhost, si estamos en Render usa la URL del servidor
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? "http://localhost:3000/api"
+    : "/api"; // En producción usa la ruta relativa si el frontend y backend están en el mismo server
 const DEPTOS = ["Artigas", "Canelones", "Cerro Largo", "Colonia", "Durazno", "Flores", "Florida", "Lavalleja", "Maldonado", "Montevideo", "Paysandú", "Río Negro", "Rivera", "Rocha", "Salto", "San José", "Soriano", "Tacuarembó", "Treinta y Tres"];
 
 let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;

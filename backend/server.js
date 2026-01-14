@@ -6,8 +6,10 @@ const fs = require('fs');
 const { initDB, openDB } = require('./db');
 
 const app = express();
-const PORT = 3000;
-const BASE_URL = `http://localhost:${PORT}`;
+const PORT = process.env.PORT || 3000;
+// En Render no podemos usar localhost para las imágenes, necesitamos la URL real
+// Esta BASE_URL se usará para guardar la ruta completa de las fotos de perfil
+const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
