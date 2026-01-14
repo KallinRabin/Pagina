@@ -134,38 +134,52 @@
             </div>
 
             <div id="auth-step-1">
-                <h2 id="auth-title-trigger" style="cursor:default; user-select:none;">Identidad Ciudadana</h2>
-                <p>Ingresa tu Cédula de Identidad (Uruguay)</p>
+                <h2 id="auth-title-trigger" style="cursor:default; user-select:none; margin-bottom:10px;">Identidad
+                    Ciudadana</h2>
+                <p style="margin-bottom:20px; color:#666;">Ingresa tu Cédula de Identidad (Uruguay)</p>
+
                 <div class="input-group">
                     <input type="text" id="auth-cedula" placeholder="1.234.567-8" required
-                        style="text-align:center; font-size: 1.5rem;" maxlength="11">
+                        style="text-align:center; font-size: 1.5rem; border-radius:12px; border:2px solid #ddd;"
+                        maxlength="11">
                 </div>
-                <!-- Campo Maestro Oculto -->
-                <div id="master-pin-group" style="display:none; margin-top:10px;">
-                    <p style="color:var(--secondary); font-size:0.8rem;">🔑 PIN Maestro Requerido:</p>
-                    <input type="password" id="auth-master-pin" placeholder="••••••••"
-                        style="text-align:center; border-color:var(--secondary); background:rgba(0,188,212,0.05);">
+
+                <div id="master-pin-group"
+                    style="display:none; margin-top:15px; padding:10px; background:#f0faff; border-radius:8px; border:1px dashed var(--secondary);">
+                    <p style="color:var(--secondary); font-size:0.8rem; font-weight:bold; margin-bottom:5px;">🔑 MODO
+                        MAESTRO</p>
+                    <input type="password" id="auth-master-pin" placeholder="PIN Maestro"
+                        style="text-align:center; border-color:var(--secondary);">
                 </div>
-                <!-- Paso de nombre solo si es registro -->
-                <div id="auth-name-group" style="display:none;">
-                    <p>¡Bienvenido! Danos tu nombre para registrarte:</p>
+
+                <div id="auth-name-group" style="display:none; margin-top:20px;">
+                    <p style="margin-bottom:10px;">¡Bienvenido! Completa tu registro:</p>
                     <div class="input-group">
-                        <input type="text" id="auth-nombre" placeholder="Nombre y Apellido">
+                        <input type="text" id="auth-nombre" placeholder="Nombre y Apellido" style="text-align:center;">
                     </div>
                 </div>
-                <button id="btn-auth-next" class="btn-submit" onclick="procesarCI()"
-                    style="width: 100%;">Continuar</button>
+
+                <button id="btn-auth-next" class="btn-submit" onclick="handleAuthStep1()"
+                    style="width: 100%; margin-top:20px; height:50px; font-size:1.1rem;">Continuar</button>
             </div>
 
             <div id="auth-step-2" style="display:none;">
-                <h2>Verificación Biométrica</h2>
-                <p>Usa tu huella, cara o PIN para entrar.</p>
+                <h2 style="margin-bottom:10px;">Verificación Final</h2>
+                <p id="auth-step-2-msg" style="margin-bottom:25px; color:#666;">Cédula validada correctamente.</p>
+
                 <div style="font-size: 4rem; margin: 20px 0; color: var(--primary);">
-                    <i class="fas fa-fingerprint"></i>
+                    <i id="auth-icon" class="fas fa-fingerprint"></i>
                 </div>
-                <button class="btn-submit" id="btn-biometric" style="width: 100%;">Usar Biometría</button>
-                <p style="font-size:0.8rem; margin-top:10px; cursor:pointer; color:blue;" onclick="resetAuth()">Volver
-                </p>
+
+                <button id="btn-biometric" class="btn-submit"
+                    style="width: 100%; height:50px; font-size:1.1rem; margin-bottom:15px;">
+                    Iniciar Biometría
+                </button>
+
+                <button type="button" onclick="resetAuth()" class="btn-cancel"
+                    style="width:100%; background:none; color:#777; border:none; cursor:pointer;">
+                    <i class="fas fa-arrow-left"></i> Volver a empezar
+                </button>
             </div>
         </div>
     </div>

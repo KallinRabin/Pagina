@@ -32,6 +32,12 @@ async function init() {
     const postForm = document.getElementById('postForm');
     if (postForm) postForm.onsubmit = guardarPost;
 
+    // Verificación de contexto seguro para Biometría
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+        showToast("⚠️ Biometría requiere HTTPS para funcionar en este dispositivo.", "warning");
+        console.warn("WebAuthn requiere un contexto seguro (HTTPS o localhost).");
+    }
+
     await cargarPublicaciones();
 }
 
@@ -76,6 +82,11 @@ function resetAuth() {
     document.getElementById('auth-master-pin').value = '';
 }
 
+function irPaso1() {
+    document.getElementById('auth-step-1').style.display = 'block';
+    document.getElementById('auth-step-2').style.display = 'none';
+}
+
 // VALIDADOR CI URUGUAYA (Front)
 function validarCI(ci) {
     const ciClean = ci.toString().replace(/\D/g, '');
@@ -89,14 +100,17 @@ function validarCI(ci) {
     return digitoVerificadorCalculado === arrCI[7];
 }
 
-async function procesarCI() {
+// NUEVO CONTROLADOR UNIFICADO DE PASO 1
+async function handleAuthStep1() {
     const cedula = document.getElementById('auth-cedula').value.trim();
     const pinMaestro = document.getElementById('auth-master-pin').value;
+    const isMasterMode = document.getElementById('master-pin-group').style.display !== 'none';
+    const isRegistering = document.getElementById('auth-name-group').style.display !== 'none';
 
     if (!validarCI(cedula)) return showToast("Cédula uruguaya inválida", "error");
 
-    // LÓGICA MAESTRA
-    if (document.getElementById('master-pin-group').style.display !== 'none' && pinMaestro) {
+    // 1. Prioridad: Login Maestro
+    if (isMasterMode && pinMaestro) {
         try {
             const res = await fetch(`${API_URL}/auth/master-login`, {
                 method: 'POST',
@@ -104,40 +118,40 @@ async function procesarCI() {
                 body: JSON.stringify({ cedula, pin: pinMaestro })
             });
             const data = await res.json();
-            if (data.verified) {
-                loginExitoso(data.user);
-                showToast("Acceso Maestro Concedido", "success");
-                return;
-            } else {
-                return showToast("PIN Maestro incorrecto", "error");
-            }
-        } catch (e) {
-            return showToast("Error en login maestro", "error");
-        }
+            if (data.verified) return loginExitoso(data.user);
+            return showToast("PIN Maestro incorrecto", "error");
+        } catch (e) { return showToast("Error en login maestro", "error"); }
     }
 
+    // 2. Si ya estamos mostrando el nombre, es un registro finalizándose
+    if (isRegistering) {
+        const nombre = document.getElementById('auth-nombre').value.trim();
+        if (!nombre) return showToast("Por favor, dinos tu nombre", "error");
+        return prepararPaso2(cedula, "register", nombre);
+    }
+
+    // 3. Flujo normal: Consultar estado de la CI en el server
     try {
         const res = await fetch(`${API_URL}/auth/check-ci/${cedula}`);
         const data = await res.json();
 
         if (data.exists && data.hasPasskey) {
+            // Login directo
             prepararPaso2(cedula, "login");
         } else if (data.exists && !data.hasPasskey) {
-            showToast("Vimos que existes, pero necesitas enrolar tu biometría.", "info");
+            // Usuario existe pero no tiene biometría
+            showToast("Vemos que existes, pero necesitas enrolar tu biometría.", "info");
             document.getElementById('auth-name-group').style.display = 'block';
             document.getElementById('auth-nombre').value = data.nombre;
-            document.getElementById('btn-auth-next').onclick = () => prepararPaso2(cedula, "register");
+            // No cambiamos el botón, el usuario ahora debe dar a "Continuar" con el nombre visible
         } else {
+            // Nuevo usuario
             showToast("Primera vez en Voz Ciudadana. ¡Bienvenido!", "info");
             document.getElementById('auth-name-group').style.display = 'block';
-            document.getElementById('btn-auth-next').onclick = () => {
-                const nombre = document.getElementById('auth-nombre').value.trim();
-                if (!nombre) return showToast("Dinos tu nombre para continuar", "error");
-                prepararPaso2(cedula, "register", nombre);
-            };
+            // El usuario ahora debe llenar el nombre y volver a dar Continuar
         }
     } catch (e) {
-        showToast("Error al verificar identidad", "error");
+        showToast("Error al conectar con el servidor", "error");
     }
 }
 
@@ -146,12 +160,19 @@ function prepararPaso2(cedula, modo, nombre = "") {
     document.getElementById('auth-step-2').style.display = 'block';
 
     const btn = document.getElementById('btn-biometric');
+    const msg = document.getElementById('auth-step-2-msg');
+    const icon = document.getElementById('auth-icon');
+
     if (modo === 'register') {
         btn.onclick = () => iniciarRegistroBiometrico(cedula, nombre);
-        btn.innerText = "Registrar Huella/Cara";
+        btn.innerText = "Registrar Huella/PIN/Cara";
+        msg.innerText = `¡Hola ${nombre}! Vamos a crear tu llave de seguridad ciudadana.`;
+        icon.className = "fas fa-shield-alt";
     } else {
         btn.onclick = () => iniciarLoginBiometrico(cedula);
-        btn.innerText = "Usar Mi Huella/Cara";
+        btn.innerText = "Verificar Identidad";
+        msg.innerText = "Usa tu huella, PIN o reconocimiento facial para entrar.";
+        icon.className = "fas fa-fingerprint";
     }
 }
 
@@ -181,8 +202,11 @@ async function iniciarRegistroBiometrico(cedula, nombre) {
             showToast("Fallo al crear la llave de seguridad", "error");
         }
     } catch (e) {
-        console.error(e);
-        showToast("Biometría cancelada o no soportada", "error");
+        console.error("DETALLE ERROR WEBAUTHN [REG]:", e);
+        let msg = "Biometría cancelada o no soportada";
+        if (e.name === 'NotAllowedError') msg = "Operación cancelada por el usuario o tiempo agotado.";
+        if (e.name === 'SecurityError') msg = "Error de seguridad: El dominio no coincide.";
+        showToast(msg, "error");
     }
 }
 
@@ -194,6 +218,8 @@ async function iniciarLoginBiometrico(cedula) {
             body: JSON.stringify({ cedula })
         });
         const options = await resOptions.json();
+
+        console.log("Opciones de Login Recibidas:", options);
 
         const assertion = await SimpleWebAuthnBrowser.startAuthentication(options);
 
@@ -208,11 +234,13 @@ async function iniciarLoginBiometrico(cedula) {
             loginExitoso(data.user);
             showToast("Bienvenido de vuelta", "success");
         } else {
-            showToast("Verificación de identidad fallida", "error");
+            showToast(data.error || "Verificación de identidad fallida", "error");
         }
     } catch (e) {
-        console.error(e);
-        showToast("Error en biometría", "error");
+        console.error("DETALLE ERROR WEBAUTHN [LOGIN]:", e);
+        let msg = "Error en biometría";
+        if (e.name === 'NotAllowedError') msg = "Operación cancelada o no hay llaves disponibles.";
+        showToast(msg, "error");
     }
 }
 

@@ -146,18 +146,17 @@ app.post('/api/auth/register-options', async (req, res) => {
 
   if (!validarCI(cedula)) return res.json({ error: "Cédula inválida" });
 
-  const userId = `user-${cedula}`;
   const options = await generateRegistrationOptions({
     rpName: 'Voz Ciudadana Uruguay',
     rpID: process.env.RENDER_EXTERNAL_URL ? new URL(process.env.RENDER_EXTERNAL_URL).hostname : 'localhost',
-    userID: userId,
+    userID: Buffer.from(`user-${cedula}`),
     userName: nombre || `Usuario ${cedula}`,
     attestationType: 'none',
     authenticatorSelection: {
       residentKey: 'preferred',
-      userVerification: 'preferred',
-      // Eliminamos 'platform' para permitir Windows Hello (PIN/Cara) o llaves USB si falla lo demas
+      userVerification: 'preferred', // 'preferred' permite PIN si no hay biometría
     },
+    attestationType: 'none',
   });
 
   challenges[cedula] = options.challenge;
@@ -227,7 +226,7 @@ app.post('/api/auth/login-options', async (req, res) => {
       type: 'public-key',
       transports: ['internal', 'usb', 'nfc', 'ble', 'hybrid'],
     }],
-    userVerification: 'preferred',
+    userVerification: 'preferred', // Permite mayor flexibilidad en dispositivos antiguos
   });
 
   challenges[cedula] = options.challenge;
@@ -261,7 +260,8 @@ app.post('/api/auth/login-verify', async (req, res) => {
       delete challenges[cedula];
       res.json({ verified: true, user: { ...user, nivelInfo: calcularNivel(user.xp || 0) } });
     } else {
-      res.json({ verified: false });
+      console.log("Fallo verificación:", verification);
+      res.json({ verified: false, error: "La biometría no pudo ser verificada por el servidor." });
     }
   } catch (error) {
     res.status(400).json({ error: error.message });
