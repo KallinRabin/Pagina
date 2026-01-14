@@ -429,10 +429,16 @@ async function procesarVerificacionCI(input) {
 let cropper = null;
 
 function initCropper(input) {
-    if (input.files && input.files[0]) {
+    if (!input.files || !input.files[0]) return;
+
+    try {
         const reader = new FileReader();
+        reader.onerror = () => {
+            showToast("Error al leer el archivo. ¿Tienes los permisos activados?", "error");
+        };
         reader.onload = function (e) {
             const image = document.getElementById('cropper-image');
+            if (!image) return;
             image.src = e.target.result;
 
             document.getElementById('cropperModal').style.display = 'block';
@@ -451,6 +457,9 @@ function initCropper(input) {
             });
         };
         reader.readAsDataURL(input.files[0]);
+    } catch (err) {
+        console.error("Error en initCropper:", err);
+        showToast("No pudimos acceder a la imagen. Verifica los permisos de tu navegador.", "error");
     }
 }
 

@@ -351,7 +351,11 @@ app.post('/api/user/update', async (req, res) => {
     console.log("-> Usuario final:", user);
     console.log("=== FIN ACTUALIZACION ===");
 
-    // Añadir información de nivel
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado tras la actualización" });
+    }
+
+    // Añadir información de nivel de forma segura
     const nivelInfo = calcularNivel(user.xp || 0);
     const userConNivel = { ...user, nivelInfo };
 
