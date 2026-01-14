@@ -198,7 +198,7 @@
 
                 <div style="display:flex; justify-content:center; gap:10px;">
                     <label for="profile-file"
-                        style="cursor:pointer; color:var(--primary); font-weight:bold; font-size:0.8rem; background:#f0f7ff; padding:8px 15px; border-radius:20px; border:1px solid #cce3ff;">
+                        style="cursor:pointer; color: white !important; background-color: #0056b3 !important; font-weight:bold; font-size:0.85rem; padding:10px 20px; border-radius:20px; display: inline-block; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
                         <i class="fas fa-camera"></i> Subir/Cambiar
                     </label>
                     <button id="btn-delete-pfp" onclick="eliminarFotoPerfil()"
@@ -206,7 +206,8 @@
                         <i class="fas fa-trash"></i> Quitar
                     </button>
                 </div>
-                <input type="file" id="profile-file" accept="image/*" style="display:none;"
+                <input type="file" id="profile-file" accept="image/*"
+                    style="position: absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;"
                     onchange="initCropper(this)">
             </div>
 
@@ -283,7 +284,7 @@
                             necesitamos confirmar que eres un ciudadano real.</p>
 
                         <label for="ci-photo-input" class="btn-submit"
-                            style="background: var(--primary); color: white; display: inline-block; cursor: pointer; text-decoration: none; padding: 10px 25px; border-radius: 8px; font-weight: 600; width: auto; font-size: 0.95rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center;">
+                            style="background-color: #0056b3 !important; color: #ffffff !important; display: inline-block; cursor: pointer; text-decoration: none; padding: 12px 25px; border-radius: 8px; font-weight: 700; width: auto; font-size: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); text-align: center; border: none;">
                             <i class="fas fa-camera"></i> Validar mi Cédula
                         </label>
                     </div>
@@ -294,7 +295,8 @@
                         <p style="font-size: 0.8rem; opacity: 0.8;">Tu identidad ha sido confirmada automáticamente.</p>
                     </div>
                 </div>
-                <input type="file" id="ci-photo-input" accept="image/*" style="display:none;"
+                <input type="file" id="ci-photo-input" accept="image/*"
+                    style="position: absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0;"
                     onchange="procesarVerificacionCI(this)">
             </div>
 

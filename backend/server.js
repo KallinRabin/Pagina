@@ -61,18 +61,19 @@ const NIVELES = [
 ];
 
 function calcularNivel(xp) {
+  const safeXp = Number(xp) || 0;
   let nivelActual = NIVELES[0];
   for (const n of NIVELES) {
-    if (xp >= n.xpRequerido) nivelActual = n;
+    if (safeXp >= n.xpRequerido) nivelActual = n;
   }
-  const siguiente = NIVELES.find(n => n.xpRequerido > xp) || nivelActual;
+  const siguiente = NIVELES.find(n => n.xpRequerido > safeXp) || nivelActual;
   const xpParaSiguiente = siguiente.xpRequerido - nivelActual.xpRequerido;
-  const xpProgreso = xp - nivelActual.xpRequerido;
+  const xpProgreso = safeXp - nivelActual.xpRequerido;
   const progreso = xpParaSiguiente > 0 ? Math.min(100, Math.floor((xpProgreso / xpParaSiguiente) * 100)) : 100;
 
   return {
     ...nivelActual,
-    xpActual: xp,
+    xpActual: safeXp,
     xpSiguiente: siguiente.xpRequerido,
     progreso,
     esMaximo: nivelActual.nivel === 7
