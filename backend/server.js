@@ -3,7 +3,6 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
-const { Resend } = require('resend');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -16,7 +15,6 @@ const { initDB, openDB } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const resend = new Resend(process.env.RESEND_API_KEY);
 // En Render no podemos usar localhost para las imágenes, necesitamos la URL real
 // Esta BASE_URL se usará para guardar la ruta completa de las fotos de perfil
 const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
@@ -81,13 +79,7 @@ function calcularNivel(xp) {
   };
 }
 
-async function modificarXP(email, cantidad) {
-  const db = await openDB();
-  await db.run('UPDATE users SET xp = MAX(0, COALESCE(xp, 0) + ?) WHERE email = ?', [cantidad, email]);
-  const user = await db.get('SELECT xp FROM users WHERE email = ?', [email]);
-  return user?.xp || 0;
-}
-
+// Función para modificar XP por ID de usuario
 async function modificarXPById(id, cantidad) {
   const db = await openDB();
   await db.run('UPDATE users SET xp = MAX(0, COALESCE(xp, 0) + ?) WHERE id = ?', [cantidad, id]);
@@ -96,11 +88,9 @@ async function modificarXPById(id, cantidad) {
 }
 
 // CONFIGURACIÓN DE ACCESO MAESTRO
-const CODIGO_MAESTRO = "080808";
-const ADMIN_EMAILS = ["admin@vozciudadana.uy", "vciudadanauy@gmail.com"];
+const ADMIN_CEDULAS = ["1.234.567-8", "4.123.456-7"]; // Reemplazar con CIs reales
 
-// AUTH STATES (Memoria)
-const pendingCodes = {}; // { email: { code, expires } }
+// Email y códigos eliminados (migración a CI)
 const challenges = {}; // { userId/session: challenge }
 
 // ==========================================
@@ -124,46 +114,6 @@ function validarCI(ci) {
 
   const digitoVerificadorCalculado = (10 - (suma % 10)) % 10;
   return digitoVerificadorCalculado === arrCI[7];
-}
-
-// ==========================================
-// AUTH UTILS
-// ==========================================
-// Simulación y envío real
-async function enviarEmail(email, code) {
-  console.log(`\n📧 [AUTH] Para: ${email} | Código: ${code}\n`);
-
-  // Guardar en archivo (simulación local)
-  try {
-    fs.writeFileSync(path.join(__dirname, 'codigo_login.txt'), `El código para ${email} es: ${code}`);
-  } catch (e) { console.error(e); }
-
-  // Envío real si hay API KEY
-  if (process.env.RESEND_API_KEY) {
-    try {
-      await resend.emails.send({
-        from: 'Voz Ciudadana <onboarding@resend.dev>', // Ver nota sobre dominios
-        to: email,
-        subject: 'Tu código de acceso - Voz Ciudadana',
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px; max-width: 500px;">
-            <h2 style="color: #0056b3;">Voz Ciudadana 🗳️</h2>
-            <p>Hola,</p>
-            <p>Tu código de acceso para entrar a la plataforma es:</p>
-            <div style="font-size: 2rem; font-weight: bold; letter-spacing: 5px; text-align: center; padding: 20px; background: #f4f7f9; border-radius: 8px; margin: 20px 0;">
-              ${code}
-            </div>
-            <p>Este código expira en 5 minutos.</p>
-            <hr>
-            <p style="font-size: 0.8rem; color: #888;">Si no solicitaste este código, puedes ignorar este correo.</p>
-          </div>
-        `
-      });
-      console.log("✅ Correo enviado vía Resend");
-    } catch (error) {
-      console.error("❌ Falló el envío vía Resend:", error);
-    }
-  }
 }
 
 // ==========================================
@@ -237,7 +187,7 @@ app.post('/api/auth/register-verify', async (req, res) => {
       let user = await db.get('SELECT id FROM users WHERE cedula = ?', [cedula]);
 
       if (!user) {
-        const rol = ADMIN_EMAILS.includes(cedula) ? 'admin' : 'user';
+        const rol = ADMIN_CEDULAS.includes(cedula) ? 'admin' : 'user';
         await db.run(
           'INSERT INTO users (cedula, nombre, rol, public_key, webauthn_id, sign_count) VALUES (?, ?, ?, ?, ?, ?)',
           [cedula, nombre, rol, isoBase64URL.fromBuffer(credentialPublicKey), isoBase64URL.fromBuffer(credentialID), counter]
@@ -318,9 +268,9 @@ app.post('/api/auth/login-verify', async (req, res) => {
 });
 
 app.post('/api/user/update', async (req, res) => {
-  const { email, nombre, foto, departamento, eliminarFoto } = req.body;
+  const { cedula, nombre, foto, departamento, eliminarFoto } = req.body;
   console.log("=== ACTUALIZACION DE PERFIL ===");
-  console.log("Email:", email);
+  console.log("Cédula:", cedula);
   console.log("Nombre:", nombre);
   console.log("Departamento:", departamento);
   console.log("Tiene foto Base64:", foto ? foto.substring(0, 50) + "..." : "NO");
@@ -341,7 +291,7 @@ app.post('/api/user/update', async (req, res) => {
         const type = matches[1];
         const buffer = Buffer.from(matches[2], 'base64');
         const ext = type.split('/')[1] || 'png';
-        const filename = `pfp_${email.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${ext}`;
+        const filename = `pfp_${cedula}_${Date.now()}.${ext}`;
         const filepath = path.join(__dirname, 'uploads', filename);
         fs.writeFileSync(filepath, buffer);
         fotoUrl = `${BASE_URL}/uploads/${filename}`;
@@ -358,8 +308,8 @@ app.post('/api/user/update', async (req, res) => {
       params.push(fotoUrl);
     }
 
-    const query = `UPDATE users SET ${setClauses.join(', ')} WHERE email = ?`;
-    params.push(email);
+    const query = `UPDATE users SET ${setClauses.join(', ')} WHERE cedula = ?`;
+    params.push(cedula);
 
     console.log("-> Query:", query);
     console.log("-> Params:", params);
@@ -483,7 +433,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CREATE POST
 app.post('/api/posts', async (req, res) => {
-  const { titulo, contenido, tipo, dept, autor, emailAutor, anonimo, multimedia } = req.body;
+  const { titulo, contenido, tipo, dept, autor, cedulaAutor, anonimo, multimedia } = req.body;
   const db = await openDB();
 
   try {
@@ -586,15 +536,14 @@ app.put('/api/posts/:id', async (req, res) => {
 
     if (nuevoEstado) {
       // Obtener estado anterior y autor
-      const post = await db.get("SELECT estado, email_autor FROM posts WHERE id = ?", [req.params.id]);
+      const post = await db.get("SELECT estado, user_id FROM posts WHERE id = ?", [req.params.id]);
       const estadoAnterior = post?.estado;
-      const emailAutor = post?.email_autor;
 
       // Actualizar estado
       await db.run("UPDATE posts SET estado = ? WHERE id = ?", [nuevoEstado, req.params.id]);
 
       // Calcular cambio de XP
-      if (emailAutor && estadoAnterior !== nuevoEstado) {
+      if (post?.user_id && estadoAnterior !== nuevoEstado) {
         let xpCambio = 0;
 
         // Revertir XP del estado anterior
@@ -608,8 +557,8 @@ app.put('/api/posts/:id', async (req, res) => {
         else if (nuevoEstado === 'Rechazado') xpCambio -= 2;
 
         if (xpCambio !== 0) {
-          await modificarXP(emailAutor, xpCambio);
-          console.log(`XP: ${emailAutor} ${xpCambio > 0 ? '+' : ''}${xpCambio} (${estadoAnterior} -> ${nuevoEstado})`);
+          await modificarXPById(post.user_id, xpCambio);
+          console.log(`XP: ID ${post.user_id} ${xpCambio > 0 ? '+' : ''}${xpCambio} (${estadoAnterior} -> ${nuevoEstado})`);
         }
       }
     }
@@ -622,7 +571,7 @@ app.put('/api/posts/:id', async (req, res) => {
 
 // VOTE POST
 app.post('/api/posts/:id/vote', async (req, res) => {
-  const { email } = req.body;
+  const { cedula } = req.body;
   const id = req.params.id;
   const db = await openDB();
 
