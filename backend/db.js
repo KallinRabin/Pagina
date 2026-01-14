@@ -101,6 +101,37 @@ async function initDB() {
     `);
 
     console.log("Base de datos inicializada y tablas verificadas.");
+
+    // AUTO-SEEDING: Si no hay publicaciones, crear una de bienvenida
+    const postCount = await db.get("SELECT COUNT(*) as c FROM posts WHERE deleted_at IS NULL");
+    if (postCount.c === 0) {
+        console.log("🌱 Base de datos vacía detectada. Creando post de bienvenida...");
+
+        // Crear usuario admin virtual
+        const adminEmail = 'admin@vozciudadana.uy';
+        let admin = await db.get("SELECT id FROM users WHERE email = ?", [adminEmail]);
+        if (!admin) {
+            await db.run("INSERT INTO users (email, nombre, rol, xp) VALUES (?, ?, ?, ?)",
+                [adminEmail, 'Administrador', 'admin', 1000]);
+        }
+
+        // Crear post
+        await db.run(`
+            INSERT INTO posts (titulo, contenido, tipo, departamento, autor_nombre, email_autor, estado, fecha)
+            VALUES (?, ?, ?, ?, ?, ?, ?, date('now'))`,
+            [
+                "¡Bienvenidos a Voz Ciudadana! 🗳️",
+                "Esta es una plataforma para que todos los ciudadanos de Uruguay puedan expresar sus ideas, quejas y propuestas para mejorar el país.\n\nComo acabas de entrar a un servidor nuevo, hemos creado este post automáticamente. ¡Siéntete libre de crear el primer reporte real de tu comunidad!",
+                "General",
+                "Montevideo",
+                "Administrador",
+                adminEmail,
+                "Completado"
+            ]
+        );
+        console.log("✅ Post de bienvenida creado con éxito.");
+    }
+
     return db;
 }
 
