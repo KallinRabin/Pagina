@@ -32,10 +32,18 @@ async function init() {
     const postForm = document.getElementById('postForm');
     if (postForm) postForm.onsubmit = guardarPost;
 
-    // Verificación de contexto seguro para Biometría
+    // Verificación de contexto seguro para Biometría y Cámara
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-        showToast("⚠️ Biometría requiere HTTPS para funcionar en este dispositivo.", "warning");
-        console.warn("WebAuthn requiere un contexto seguro (HTTPS o localhost).");
+        const warningDiv = document.createElement('div');
+        warningDiv.style.cssText = "background:#ffeded; color:#d93025; padding:15px; text-align:center; font-weight:bold; border-bottom:2px solid #d93025; position:sticky; top:0; z-index:9999;";
+        warningDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i> 
+            Atención: Estás en una conexión no segura (HTTP). 
+            La cámara y los archivos pueden ser bloqueados por tu navegador. 
+            <br><small>Usa HTTPS para funcionalidad completa.</small>
+        `;
+        document.body.prepend(warningDiv);
+        console.warn("Seguridad: Se requiere HTTPS para acceder a hardware multimedia.");
     }
 
     await cargarPublicaciones();
