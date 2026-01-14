@@ -320,7 +320,9 @@ app.post('/api/user/update', async (req, res) => {
         const buffer = Buffer.from(matches[2], 'base64');
         const ext = type.split('/')[1] || 'png';
         const filename = `pfp_${cedula}_${Date.now()}.${ext}`;
-        const filepath = path.join(__dirname, 'uploads', filename);
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const filepath = path.join(uploadDir, filename);
         fs.writeFileSync(filepath, buffer);
         fotoUrl = `${BASE_URL}/uploads/${filename}`;
         console.log("-> Imagen guardada:", fotoUrl);
@@ -486,7 +488,9 @@ app.post('/api/posts', async (req, res) => {
             const buffer = Buffer.from(matches[2], 'base64');
             const ext = type.split('/')[1] || 'bin';
             const filename = `file_${postId}_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
-            const filepath = path.join(__dirname, 'uploads', filename);
+            const uploadDir = path.join(__dirname, 'uploads');
+            if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+            const filepath = path.join(uploadDir, filename);
 
             try {
               fs.writeFileSync(filepath, buffer);
@@ -511,11 +515,12 @@ app.post('/api/posts', async (req, res) => {
 
 // ENDPOINT: VERIFICACIÓN DE CI (OCR + CLOUD)
 app.post('/api/user/verify-ci', async (req, res) => {
-  const { cedula, fotoCI } = req.body;
+  const { cedula, fotoCI, nombreExtraido } = req.body;
   const db = await openDB();
 
   try {
     let cloudUrl = null;
+    let localFilePath = null;
 
     // 1. Intentar subir a Cloudinary si está configurado
     if (process.env.CLOUDINARY_API_KEY) {
@@ -527,20 +532,34 @@ app.post('/api/user/verify-ci', async (req, res) => {
     } else {
       // Fallback local
       const matches = fotoCI.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      const buffer = Buffer.from(matches[2], 'base64');
-      const filename = `ci_verify_${cedula}_${Date.now()}.jpg`;
-      const filepath = path.join(__dirname, 'uploads', filename);
-      fs.writeFileSync(filepath, buffer);
-      cloudUrl = `${BASE_URL}/uploads/${filename}`;
+      if (matches) {
+        const buffer = Buffer.from(matches[2], 'base64');
+        const filename = `ci_verify_${cedula}_${Date.now()}.jpg`;
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        localFilePath = path.join(uploadDir, filename);
+        fs.writeFileSync(localFilePath, buffer);
+        cloudUrl = `${BASE_URL}/uploads/${filename}`;
+      }
     }
 
-    // 2. Marcar como verificado en DB
+    // 2. Marcar como verificado y actualizar nombre si se proporcionó
     await db.run(
-      'UPDATE users SET ci_verified = 1, ci_photo_url = ? WHERE cedula = ?',
-      [cloudUrl, cedula]
+      'UPDATE users SET ci_verified = 1, ci_photo_url = ?, nombre = COALESCE(?, nombre) WHERE cedula = ?',
+      ["VERIFICADO_Y_ELIMINADO", nombreExtraido || null, cedula]
     );
 
-    res.json({ success: true, url: cloudUrl });
+    // 3. AUTO-BORRADO DE PRIVACIDAD: Eliminar la evidencia física inmediatamente
+    try {
+      if (localFilePath && fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        console.log("-> Foto de CI local eliminada por privacidad.");
+      }
+    } catch (err) {
+      console.error("Error al borrar foto CI:", err);
+    }
+
+    res.json({ success: true, nombreOficial: nombreExtraido });
   } catch (error) {
     console.error("Error en verify-ci:", error);
     res.status(500).json({ error: error.message });

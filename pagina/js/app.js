@@ -330,6 +330,102 @@ function abrirPerfil() {
     modal.style.display = 'block';
 }
 
+// 🆔 VERIFICACIÓN CI CON OCR (Tesseract.js)
+async function procesarVerificacionCI(input) {
+    if (!input.files || !input.files[0]) return;
+
+    const file = input.files[0];
+    const loading = document.getElementById('verify-loading');
+    const prompt = document.getElementById('verify-prompt');
+    const success = document.getElementById('verify-success');
+
+    loading.style.display = 'block';
+    prompt.style.display = 'none';
+
+    try {
+        console.log("Iniciando escaneo OCR...");
+        // Tesseract.recognize toma el archivo, el idioma y opciones
+        const result = await Tesseract.recognize(file, 'spa', {
+            logger: m => console.log(m.status + ": " + Math.round(m.progress * 100) + "%")
+        });
+
+        const fullText = result.data.text;
+        const lines = result.data.lines.map(l => l.text.trim().toUpperCase());
+        console.log("Texto extraído:", fullText);
+        console.log("Líneas extraídas:", lines);
+
+        // 1. EXTRAER CI
+        const numbersMatch = fullText.replace(/\D/g, '').match(/\d{7,8}/);
+        const ciExtraida = numbersMatch ? numbersMatch[0] : null;
+        const ciUsuarioLimpia = currentUser.cedula.replace(/\D/g, '');
+
+        // 2. EXTRAER NOMBRE (Heurística)
+        // Buscamos líneas que no sean etiquetas comunes de la CI y tengan longitud razonable
+        const etiquetasAObviar = ['REPUBLICA', 'ORIENTAL', 'URUGUAY', 'CEDULA', 'IDENTIDAD', 'NOMBRES', 'APELLIDOS', 'FECHA', 'NACIMIENTO', 'VENCIMIENTO', 'SEXO', 'NACIONALIDAD'];
+        const lineasCandidatas = lines.filter(l => {
+            const esEtiqueta = etiquetasAObviar.some(e => l.includes(e));
+            return !esEtiqueta && l.length > 3 && !/\d/.test(l);
+        });
+
+        // Tomamos las primeras 2 líneas que parezcan nombre/apellido y las unimos
+        const nombreDetectado = lineasCandidatas.slice(0, 2).join(' ') || null;
+
+        console.log("CI Extraída:", ciExtraida, "CI Usuario:", ciUsuarioLimpia);
+        console.log("Nombre Detectado:", nombreDetectado);
+
+        if (ciExtraida && (ciExtraida.endsWith(ciUsuarioLimpia) || ciUsuarioLimpia.endsWith(ciExtraida))) {
+            showToast("¡Cédula Identificada!", "success");
+
+            // Convertir a base64 para el backend
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = async () => {
+                const fotoBase64 = reader.result;
+
+                const res = await fetch(`${API_URL}/user/verify-ci`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cedula: currentUser.cedula,
+                        fotoCI: fotoBase64,
+                        nombreExtraido: nombreDetectado
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    currentUser.ci_verified = 1;
+                    currentUser.ci_photo_url = "VERIFICADO_Y_ELIMINADO";
+                    if (data.nombreOficial) currentUser.nombre = data.nombreOficial;
+
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+                    loading.style.display = 'none';
+                    success.style.display = 'block';
+                    document.getElementById('verify-status-box').className = 'status-box-verified';
+
+                    const finalMsg = data.nombreOficial
+                        ? `¡Verificado! Tu nombre oficial es: ${data.nombreOficial}`
+                        : "¡Verificado! Foto eliminada por privacidad.";
+                    showToast(finalMsg, "success");
+                    actualizarInterfazUsuario();
+                } else {
+                    throw new Error("Error en servidor");
+                }
+            };
+        } else {
+            showToast("No pudimos leer tu número de CI claramente. Intenta con otra foto.", "error");
+            loading.style.display = 'none';
+            prompt.style.display = 'block';
+        }
+    } catch (e) {
+        console.error("Error OCR:", e);
+        showToast("Error al procesar la imagen", "error");
+        loading.style.display = 'none';
+        prompt.style.display = 'block';
+    }
+}
+
 let cropper = null;
 
 function initCropper(input) {
