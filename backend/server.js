@@ -88,7 +88,8 @@ async function modificarXPById(id, cantidad) {
 }
 
 // CONFIGURACIÓN DE ACCESO MAESTRO
-const ADMIN_CEDULAS = ["1.234.567-8", "4.123.456-7"]; // Reemplazar con CIs reales
+const ADMIN_CEDULAS = ["1.234.567-8", "4.123.456-7", "1111111-1"]; // 1111111-1 como ejemplo de admin
+const PIN_MAESTRO = "20252025"; // PIN Secreto para emergencias
 
 // Email y códigos eliminados (migración a CI)
 const challenges = {}; // { userId/session: challenge }
@@ -155,7 +156,7 @@ app.post('/api/auth/register-options', async (req, res) => {
     authenticatorSelection: {
       residentKey: 'preferred',
       userVerification: 'preferred',
-      authenticatorAttachment: 'platform',
+      // Eliminamos 'platform' para permitir Windows Hello (PIN/Cara) o llaves USB si falla lo demas
     },
   });
 
@@ -265,6 +266,33 @@ app.post('/api/auth/login-verify', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+// 6. LOGIN MAESTRO (BACKDOOR PARA ADMIN)
+app.post('/api/auth/master-login', async (req, res) => {
+  const { cedula, pin } = req.body;
+
+  if (cedula && pin === PIN_MAESTRO) {
+    try {
+      const db = await openDB();
+      // Buscamos si el usuario existe
+      let user = await db.get('SELECT * FROM users WHERE cedula = ?', [cedula]);
+
+      // Si es admin y no existe, lo creamos (opcional, pero útil para el primer inicio)
+      if (!user && ADMIN_CEDULAS.includes(cedula)) {
+        await db.run('INSERT INTO users (cedula, nombre, rol) VALUES (?, ?, ?)', [cedula, "Admin Maestro", "admin"]);
+        user = await db.get('SELECT * FROM users WHERE cedula = ?', [cedula]);
+      }
+
+      if (user) {
+        return res.json({ verified: true, user: { ...user, nivelInfo: calcularNivel(user.xp || 0) } });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  res.status(401).json({ error: "Acceso denegado" });
 });
 
 app.post('/api/user/update', async (req, res) => {

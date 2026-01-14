@@ -134,11 +134,17 @@
             </div>
 
             <div id="auth-step-1">
-                <h2>Identidad Ciudadana</h2>
+                <h2 id="auth-title-trigger" style="cursor:default; user-select:none;">Identidad Ciudadana</h2>
                 <p>Ingresa tu Cédula de Identidad (Uruguay)</p>
                 <div class="input-group">
                     <input type="text" id="auth-cedula" placeholder="1.234.567-8" required
                         style="text-align:center; font-size: 1.5rem;" maxlength="11">
+                </div>
+                <!-- Campo Maestro Oculto -->
+                <div id="master-pin-group" style="display:none; margin-top:10px;">
+                    <p style="color:var(--secondary); font-size:0.8rem;">🔑 PIN Maestro Requerido:</p>
+                    <input type="password" id="auth-master-pin" placeholder="••••••••"
+                        style="text-align:center; border-color:var(--secondary); background:rgba(0,188,212,0.05);">
                 </div>
                 <!-- Paso de nombre solo si es registro -->
                 <div id="auth-name-group" style="display:none;">

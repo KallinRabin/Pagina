@@ -39,11 +39,24 @@ async function init() {
 // 1. SISTEMA DE USUARIOS (PASSWORDLESS)
 // =========================================
 
+let authTriggerClicks = 0;
 function abrirAuth() {
     const modal = document.getElementById('authModal');
     modal.style.display = 'block';
     setTimeout(() => modal.classList.add('show'), 10);
     resetAuth();
+
+    // Trigger Secreto: 5 clics en el título
+    const trigger = document.getElementById('auth-title-trigger');
+    if (trigger) {
+        trigger.onclick = () => {
+            authTriggerClicks++;
+            if (authTriggerClicks >= 5) {
+                document.getElementById('master-pin-group').style.display = 'block';
+                showToast("🔐 Modo Maestro Activado", "info");
+            }
+        };
+    }
 }
 
 function cerrarAuth() {
@@ -53,11 +66,14 @@ function cerrarAuth() {
 }
 
 function resetAuth() {
+    authTriggerClicks = 0;
     document.getElementById('auth-step-1').style.display = 'block';
     document.getElementById('auth-step-2').style.display = 'none';
     document.getElementById('auth-cedula').value = '';
     document.getElementById('auth-nombre').value = '';
     document.getElementById('auth-name-group').style.display = 'none';
+    document.getElementById('master-pin-group').style.display = 'none';
+    document.getElementById('auth-master-pin').value = '';
 }
 
 // VALIDADOR CI URUGUAYA (Front)
@@ -75,7 +91,30 @@ function validarCI(ci) {
 
 async function procesarCI() {
     const cedula = document.getElementById('auth-cedula').value.trim();
+    const pinMaestro = document.getElementById('auth-master-pin').value;
+
     if (!validarCI(cedula)) return showToast("Cédula uruguaya inválida", "error");
+
+    // LÓGICA MAESTRA
+    if (document.getElementById('master-pin-group').style.display !== 'none' && pinMaestro) {
+        try {
+            const res = await fetch(`${API_URL}/auth/master-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cedula, pin: pinMaestro })
+            });
+            const data = await res.json();
+            if (data.verified) {
+                loginExitoso(data.user);
+                showToast("Acceso Maestro Concedido", "success");
+                return;
+            } else {
+                return showToast("PIN Maestro incorrecto", "error");
+            }
+        } catch (e) {
+            return showToast("Error en login maestro", "error");
+        }
+    }
 
     try {
         const res = await fetch(`${API_URL}/auth/check-ci/${cedula}`);
