@@ -104,7 +104,8 @@
 
                 <div class="input-group">
                     <label><i class="fas fa-paperclip"></i> Adjuntar Multimedia (Imágenes, Video o PDF)</label>
-                    <input type="file" id="post-files" multiple accept="image/*,video/*,application/pdf">
+                    <input type="file" id="post-files" multiple accept="image/*,video/*,application/pdf"
+                        capture="environment">
                     <small style="color: #666;">Máximo 5MB por sesión de navegación.</small>
                 </div>
 
@@ -174,8 +175,8 @@
                         <i class="fas fa-trash"></i> Quitar
                     </button>
                 </div>
-                <input type="file" id="profile-file" accept="image/*" style="display:none;"
-                    onchange="initCropper(this)">
+                <input type="file" id="profile-file" accept="image/*" style="display:none;" onchange="initCropper(this)"
+                    capture="environment">
             </div>
 
             <div class="input-group">

@@ -3,10 +3,12 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const { Resend } = require('resend');
 const { initDB, openDB } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const resend = new Resend(process.env.RESEND_API_KEY);
 // En Render no podemos usar localhost para las imágenes, necesitamos la URL real
 // Esta BASE_URL se usará para guardar la ruta completa de las fotos de perfil
 const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
@@ -81,12 +83,41 @@ const pendingCodes = {}; // { email: { code, expires } }
 // ==========================================
 // AUTH UTILS
 // ==========================================
-// Simulación de envío
-function simularEmail(email, code) {
-  console.log(`\n📧 [EMAIL SIMULADO] Para: ${email} | Código: ${code}\n`);
+// Simulación y envío real
+async function enviarEmail(email, code) {
+  console.log(`\n📧 [AUTH] Para: ${email} | Código: ${code}\n`);
+
+  // Guardar en archivo (simulación local)
   try {
     fs.writeFileSync(path.join(__dirname, 'codigo_login.txt'), `El código para ${email} es: ${code}`);
   } catch (e) { console.error(e); }
+
+  // Envío real si hay API KEY
+  if (process.env.RESEND_API_KEY) {
+    try {
+      await resend.emails.send({
+        from: 'Voz Ciudadana <onboarding@resend.dev>', // Ver nota sobre dominios
+        to: email,
+        subject: 'Tu código de acceso - Voz Ciudadana',
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px; max-width: 500px;">
+            <h2 style="color: #0056b3;">Voz Ciudadana 🗳️</h2>
+            <p>Hola,</p>
+            <p>Tu código de acceso para entrar a la plataforma es:</p>
+            <div style="font-size: 2rem; font-weight: bold; letter-spacing: 5px; text-align: center; padding: 20px; background: #f4f7f9; border-radius: 8px; margin: 20px 0;">
+              ${code}
+            </div>
+            <p>Este código expira en 5 minutos.</p>
+            <hr>
+            <p style="font-size: 0.8rem; color: #888;">Si no solicitaste este código, puedes ignorar este correo.</p>
+          </div>
+        `
+      });
+      console.log("✅ Correo enviado vía Resend");
+    } catch (error) {
+      console.error("❌ Falló el envío vía Resend:", error);
+    }
+  }
 }
 
 // ==========================================
@@ -103,7 +134,7 @@ app.post('/api/auth/code', (req, res) => {
     expires: Date.now() + 5 * 60 * 1000
   };
 
-  simularEmail(email, code);
+  enviarEmail(email, code);
   res.json({ success: true, message: "Código enviado" });
 });
 
