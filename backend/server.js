@@ -14,14 +14,23 @@ const BASE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 
-// Servir archivos estáticos del frontend
-app.use(express.static(path.join(__dirname, '..', 'pagina')));
-
-// Servir uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Middleware de log para depurar en Render
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api')) {
+    console.log(`[API REQUEST] ${req.method} ${req.url}`);
+  }
+  next();
+});
 
 // Inicializar DB al arrancar
 initDB();
+
+// Servir uploads (fotos)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// NOTA: Los archivos estáticos del frontend se cargarán al FINAL para no interferir con la API
+// (Mueve esta línea al final del archivo antes del app.listen)
+
 
 // ==========================================
 // SISTEMA DE GAMIFICACIÓN - NIVELES Y XP
@@ -495,6 +504,8 @@ app.post('/api/posts/:id/comment/:comId/vote', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Servir frontend al final
+app.use(express.static(path.join(__dirname, '..', 'pagina')));
 
 app.listen(PORT, () => {
   console.log(`Servidor SQL Lite corriendo en http://localhost:${PORT}`);
