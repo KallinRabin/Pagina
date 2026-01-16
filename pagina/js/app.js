@@ -1271,6 +1271,14 @@ function actualizarFeed() {
     const container = document.getElementById('feed-container');
     if (!container) return;
 
+    // 1. Snapshot de Estado UI: Guardar qué cajas de respuesta están abiertas
+    const openReplyIds = [];
+    document.querySelectorAll('div[id^="reply-box-"]').forEach(box => {
+        if (box.style.display !== 'none') {
+            openReplyIds.push(box.id);
+        }
+    });
+
     const isAdmin = currentUser && currentUser.rol === 'admin';
 
     // Normalizar datos para evitar inconsistencias
@@ -1385,5 +1393,11 @@ function actualizarFeed() {
                     </div>
                 </div>
             </div>`;
+    });
+
+    // 2. Restauración de Estado UI: Reabrir cajas que estaban abiertas
+    openReplyIds.forEach(id => {
+        const box = document.getElementById(id);
+        if (box) box.style.display = 'block';
     });
 }
