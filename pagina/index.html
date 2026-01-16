@@ -196,20 +196,35 @@
                 <img id="profile-preview" src="https://ui-avatars.com/api/?name=User&background=random"
                     style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:4px solid var(--primary); display:block; margin:0 auto 10px auto; box-shadow:0 6px 15px rgba(0,0,0,0.15);">
 
-                <div style="display:flex; justify-content:center; gap:10px; margin-top:15px;">
-                    <!-- Contenedor relativo para el botón de subida real (Superpuesto para móviles) -->
+                <!-- Botones Divididos: Cámara vs Archivos (Perfil) -->
+                <div style="display:flex; justify-content:center; gap:10px; margin-top:15px; flex-wrap:wrap;">
+
+                    <!-- 1. Botón CÁMARA (Selfie preferida) -->
                     <div style="position:relative; display:inline-block; overflow:hidden;">
                         <button class="btn-submit"
-                            style="background-color: #0056b3; color:white; padding:10px 20px; border-radius:30px; border:none; font-weight:bold; font-size:0.85rem; pointer-events:none;">
-                            <i class="fas fa-camera"></i> Subir/Cambiar
+                            style="background-color: #0056b3; color:white; padding:10px 15px; border-radius:30px; border:none; font-weight:bold; font-size:0.85rem; pointer-events:none; display:flex; align-items:center; gap:5px;">
+                            <i class="fas fa-camera"></i> Cámara
+                        </button>
+                        <input type="file" id="profile-cam" accept="image/*" capture="user" onchange="initCropper(this)"
+                            style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:5;">
+                    </div>
+
+                    <!-- 2. Botón ARCHIVOS -->
+                    <div style="position:relative; display:inline-block; overflow:hidden;">
+                        <button class="btn-submit"
+                            style="background-color: #6c757d; color:white; padding:10px 15px; border-radius:30px; border:none; font-weight:bold; font-size:0.85rem; pointer-events:none; display:flex; align-items:center; gap:5px;">
+                            <i class="fas fa-folder-open"></i> Archivos
                         </button>
                         <input type="file" id="profile-file" accept="image/*" onchange="initCropper(this)"
                             style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:5;">
                     </div>
+                </div>
 
+                <!-- Botón Quitar (separado para no confundir) -->
+                <div style="margin-top:10px;">
                     <button id="btn-delete-pfp" onclick="eliminarFotoPerfil()"
-                        style="cursor:pointer; color:#dc3545; font-weight:bold; font-size:0.8rem; background:#fff5f5; padding:8px 15px; border-radius:20px; border:1px solid #ffd8d8;">
-                        <i class="fas fa-trash"></i> Quitar
+                        style="cursor:pointer; color:#dc3545; font-weight:bold; font-size:0.8rem; background:none; border:none; text-decoration:underline;">
+                        <i class="fas fa-trash"></i> Eliminar foto actual
                     </button>
                 </div>
             </div>
@@ -286,14 +301,30 @@
                         <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Para publicar o votar,
                             necesitamos confirmar que eres un ciudadano real.</p>
 
-                        <div style="position:relative; display:inline-block; overflow:hidden;">
-                            <button class="btn-submit"
-                                style="background-color: #0056b3 !important; color: white !important; padding: 12px 25px; border-radius: 8px; font-weight: 700; font-size: 1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: none; pointer-events:none;">
-                                <i class="fas fa-camera"></i> Validar mi Cédula
-                            </button>
-                            <input type="file" id="ci-photo-input" accept="image/*"
-                                onchange="procesarVerificacionCI(this)"
-                                style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:10;">
+                        <!-- Botones Divididos para CI -->
+                        <div style="display:flex; justify-content:center; gap:15px; flex-wrap:wrap;">
+
+                            <!-- 1. Botón CÁMARA (Trasera obligatoria para docs) -->
+                            <div style="position:relative; display:inline-block; overflow:hidden;">
+                                <button class="btn-submit"
+                                    style="background-color: #0056b3 !important; color: white !important; padding: 12px 20px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: none; pointer-events:none; display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-camera"></i> Abrir Cámara
+                                </button>
+                                <input type="file" id="ci-cam-input" accept="image/*" capture="environment"
+                                    onchange="procesarVerificacionCI(this)"
+                                    style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:10;">
+                            </div>
+
+                            <!-- 2. Botón ARCHIVOS -->
+                            <div style="position:relative; display:inline-block; overflow:hidden;">
+                                <button class="btn-submit"
+                                    style="background-color: #6c757d !important; color: white !important; padding: 12px 20px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: none; pointer-events:none; display:flex; align-items:center; gap:8px;">
+                                    <i class="fas fa-folder-open"></i> Archivos
+                                </button>
+                                <input type="file" id="ci-file-input" accept="image/*"
+                                    onchange="procesarVerificacionCI(this)"
+                                    style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:10;">
+                            </div>
                         </div>
                     </div>
 

@@ -15,7 +15,43 @@ document.addEventListener('DOMContentLoaded', () => {
     actualizarInterfazUsuario();
 });
 
+// Helper: Validar que el archivo sea una imagen real
+function validarImagen(file) {
+    if (!file) return false;
+    if (!file.type.startsWith('image/')) {
+        showToast("⚠️ El archivo seleccionado no es una imagen válida.", "error");
+        return false;
+    }
+    // Límite de 10MB
+    if (file.size > 10 * 1024 * 1024) {
+        showToast("⚠️ La imagen es demasiado grande (Máx 10MB).", "warning");
+        return false;
+    }
+    return true;
+}
+
+// Helper: Detectar permisos de cámara (Best Effort)
+async function detectarPermisosCamara() {
+    if (navigator.permissions && navigator.permissions.query) {
+        try {
+            const status = await navigator.permissions.query({ name: 'camera' });
+            if (status.state === 'denied') {
+                console.warn("Permiso de cámara denegado por el usuario/navegador.");
+                const warningDiv = document.createElement('div');
+                warningDiv.style.cssText = "background:#ffebee; color:#c62828; padding:10px; text-align:center; font-weight:bold; font-size:0.9rem; border-bottom:1px solid #ef9a9a;";
+                warningDiv.innerHTML = `<i class="fas fa-ban"></i> Acceso a cámara denegado. <br><small>Habilita los permisos en la configuración de tu navegador.</small>`;
+                const verifySection = document.getElementById('verification-section');
+                if (verifySection) verifySection.prepend(warningDiv);
+            }
+        } catch (e) {
+            console.log("API de permisos de cámara no soportada en este navegador.");
+        }
+    }
+}
+
 async function init() {
+    // Detectar permisos al inicio
+    detectarPermisosCamara();
     // Selectores de departamentos
     const mainF = document.getElementById('main-dept-filter');
     const postF = document.getElementById('post-dept');
@@ -437,37 +473,46 @@ async function procesarVerificacionCI(input) {
 let cropper = null;
 
 function initCropper(input) {
-    if (!input.files || !input.files[0]) return;
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
 
-    try {
+        // Validación estricta
+        if (!validarImagen(file)) {
+            input.value = ''; // Limpiar input
+            return;
+        }
+
         const reader = new FileReader();
-        reader.onerror = () => {
-            showToast("Error al leer el archivo. ¿Tienes los permisos activados?", "error");
-        };
-        reader.onload = function (e) {
-            const image = document.getElementById('cropper-image');
-            if (!image) return;
-            image.src = e.target.result;
 
-            document.getElementById('cropperModal').style.display = 'block';
+        if (cropper) cropper.destroy();
 
-            if (cropper) cropper.destroy();
+        try {
+            reader.onload = function (e) {
+                const image = document.getElementById('cropper-image');
+                if (!image) return;
+                image.src = e.target.result;
 
-            cropper = new Cropper(image, {
-                aspectRatio: 1,
-                viewMode: 1,
-                guides: true,
-                center: true,
-                highlight: false,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: false,
-            });
-        };
-        reader.readAsDataURL(input.files[0]);
-    } catch (err) {
-        console.error("Error en initCropper:", err);
-        showToast("No pudimos acceder a la imagen. Verifica los permisos de tu navegador.", "error");
+                document.getElementById('cropperModal').style.display = 'block';
+
+                if (cropper) cropper.destroy();
+
+                cropper = new Cropper(image, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                    guides: true,
+                    center: true,
+                    highlight: false,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: false,
+                });
+            };
+
+            reader.readAsDataURL(input.files[0]);
+        } catch (err) {
+            console.error("Error en initCropper:", err);
+            showToast("No pudimos acceder a la imagen. Verifica los permisos de tu navegador.", "error");
+        }
     }
 }
 
