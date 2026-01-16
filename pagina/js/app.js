@@ -22,9 +22,9 @@ function validarImagen(file) {
         showToast("⚠️ El archivo seleccionado no es una imagen válida.", "error");
         return false;
     }
-    // Límite de 10MB
-    if (file.size > 10 * 1024 * 1024) {
-        showToast("⚠️ La imagen es demasiado grande (Máx 10MB).", "warning");
+    // Límite de 5MB (Reducido para móviles)
+    if (file.size > 5 * 1024 * 1024) {
+        showToast("⚠️ La imagen es demasiado grande (Máx 5MB).", "warning");
         return false;
     }
     return true;
@@ -333,7 +333,17 @@ function abrirPerfil() {
     if (!currentUser) return;
     document.getElementById('profile-name').value = currentUser.nombre || '';
     document.getElementById('profile-email').value = currentUser.cedula || ''; // Mostramos cédula en el campo bloqueado
-    document.getElementById('profile-dept').value = currentUser.departamento || '';
+    // Bloquear nombre si está verificado
+    const nameInput = document.getElementById('profile-name');
+    if (currentUser.nombre && currentUser.ci_verified) {
+        nameInput.value = currentUser.nombre;
+        nameInput.disabled = true;
+        nameInput.title = "Nombre verificado por Renaper/DNIC (Inmutable)";
+        // Ocultar cualquier botón de borrado si existiera
+    } else {
+        nameInput.disabled = false;
+        nameInput.value = currentUser.nombre || '';
+    }
 
     // Mostrar foto actual o inicial de nombre
     const preview = document.getElementById('profile-preview');
@@ -507,6 +517,9 @@ function initCropper(input) {
                     toggleDragModeOnDblclick: false,
                 });
             };
+            reader.onerror = () => {
+                showToast("⚠️ Error de lectura. En Android, ve a Ajustes > Apps > Navegador > Permisos y activa 'Almacenamiento'.", "error", 7000);
+            };
 
             reader.readAsDataURL(input.files[0]);
         } catch (err) {
@@ -653,6 +666,12 @@ async function procesarVerificacionCI(input) {
                     loading.style.display = 'none';
                     document.getElementById('verify-success').style.display = 'block';
                     showToast("¡Ya eres Ciudadano Verificado!", "success");
+
+                    // Bloquear edición de nombre
+                    const nameInput = document.getElementById('profile-name');
+                    nameInput.value = currentUser.nombre;
+                    nameInput.disabled = true;
+
                     actualizarInterfazUsuario();
                 } else {
                     throw new Error(data.error);
@@ -694,7 +713,8 @@ function abrirModal(tipo) {
         abrirAuth();
         return;
     }
-    if (!currentUser.ci_verified) {
+    // Admin Bypass: Los admins pueden publicar sin verificar CI
+    if (!currentUser.ci_verified && currentUser.rol !== 'admin') {
         showToast("Debes verificar tu identidad con tu Cédula para publicar.", "warning");
         abrirPerfil();
         return;
