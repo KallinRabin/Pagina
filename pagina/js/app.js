@@ -82,44 +82,70 @@ async function init() {
         console.warn("Seguridad: Se requiere HTTPS para acceder a hardware multimedia.");
     }
 
+    // Limpieza de Sesión Antigua (Security Fix)
+    if (localStorage.getItem('currentUser')) {
+        console.log("🧹 Limpiando sesión persistente antigua...");
+        localStorage.removeItem('currentUser');
+    }
+
     await cargarPublicaciones();
     iniciarAutoSync();
 }
 
 let lastPollTimestamp = 0;
+let pendingUpdates = null; // Almacenamiento temporal para actualizaciones pendientes
+
 function iniciarAutoSync() {
-    console.log("📡 Sincronización automática activada");
+    console.log("📡 Sincronización automática activada (Híbrida)");
     setInterval(async () => {
-        // 1. Protección contra escritura: Si el usuario teclea, no actualizamos
+        // 1. Protección contra escritura
         const activeElement = document.activeElement;
         const isTyping = activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA");
         if (isTyping) return;
 
-        // 2. Comprobación silenciosa
+        // 2. Comprobación profunda
         try {
             const res = await fetch(`${API_URL}/posts`);
             const data = await res.json();
 
-            // Lógica simple de detección de cambios (por longitud o ID del último)
-            // Para robustez total, reemplazamos el array pero mantenemos scroll si es posible
-            // (Si hay nuevos, se agregan arriba)
-
-            const hayCambios = JSON.stringify(data[0]?.id) !== JSON.stringify(publicaciones[0]?.id)
-                || data.length !== publicaciones.length
-                || JSON.stringify(data[0]?.votos) !== JSON.stringify(publicaciones[0]?.votos); // Cambio en votos
+            const hayCambios = JSON.stringify(data) !== JSON.stringify(publicaciones);
 
             if (hayCambios) {
-                // Preservar posición de scroll relativa si es posible, o simplemente actualizar
-                // Si el usuario está leyendo muy abajo, actualizar feed puede saltar.
-                // Por ahora actualizamos todo para asegurar consistencia.
-                publicaciones = data;
-                actualizarFeed();
-                // Opcional: console.log("🔄 Feed actualizado automáticamente");
+                // Estrategia Híbrida:
+                // Si el usuario bajó mucho (scroll > 300px), NO refrescamos de golpe. Mostramos aviso.
+                // Si está arriba, refrescamos automágicamente.
+
+                if (window.scrollY > 300) {
+                    pendingUpdates = data; // Guardamos para después
+                    const btn = document.getElementById('btn-refresh-feed');
+                    if (btn) {
+                        btn.style.display = 'flex';
+                        btn.classList.add('bounce-in');
+                    }
+                } else {
+                    // Está arriba, dale magia
+                    publicaciones = data;
+                    actualizarFeed();
+                }
             }
-        } catch (e) {
-            // Silencio en error de red (polling)
-        }
-    }, 6000); // Cada 6 segundos
+        } catch (e) { }
+    }, 4000);
+}
+
+// Función invocada por el botón flotante
+function aplicarActualizaciones() {
+    if (pendingUpdates) {
+        publicaciones = pendingUpdates;
+        actualizarFeed();
+        pendingUpdates = null;
+
+        // Ocultar botón y scroll suave arriba
+        const btn = document.getElementById('btn-refresh-feed');
+        if (btn) btn.style.display = 'none';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showToast("Feed actualizado al segundo ⚡", "success");
+    }
 }
 
 // =========================================
