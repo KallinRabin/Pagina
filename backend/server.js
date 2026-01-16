@@ -212,6 +212,23 @@ app.post('/api/auth/register-verify', async (req, res) => {
   }
 });
 
+// 3.5 CHEQUEO DE CÉDULA (Nombre y Existencia)
+app.get('/api/auth/check-ci/:ci', async (req, res) => {
+  const { ci } = req.params;
+  try {
+    const db = await openDB();
+    const user = await db.get('SELECT nombre, webauthn_id FROM users WHERE cedula = ?', [ci]);
+    if (user) {
+      res.json({ exists: true, nombre: user.nombre, hasPasskey: !!user.webauthn_id });
+    } else {
+      res.json({ exists: false });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // 4. Opciones para Login (Autenticación)
 app.post('/api/auth/login-options', async (req, res) => {
   const { cedula } = req.body;

@@ -174,24 +174,31 @@ async function handleAuthStep1() {
         return prepararPaso2(cedula, "register", nombre);
     }
 
-    // 3. Flujo normal: Consultar estado de la CI en el server
+    // 3. Flujo normal: Consultar estado de la CI en el server (Persistencia de Nombre)
     try {
         const res = await fetch(`${API_URL}/auth/check-ci/${cedula}`);
         const data = await res.json();
 
-        if (data.exists && data.hasPasskey) {
-            // Login directo
-            prepararPaso2(cedula, "login");
-        } else if (data.exists && !data.hasPasskey) {
-            // Usuario existe pero no tiene biometría
-            showToast("Vemos que existes, pero necesitas enrolar tu biometría.", "info");
-            document.getElementById('auth-name-group').style.display = 'block';
-            document.getElementById('auth-nombre').value = data.nombre;
-            // No cambiamos el botón, el usuario ahora debe dar a "Continuar" con el nombre visible
+        if (data.exists) {
+            if (data.hasPasskey) {
+                // Login directo
+                prepararPaso2(cedula, "login");
+            } else {
+                // Usuario existe pero no tiene biometría
+                showToast("Bienvenido de nuevo, " + data.nombre, "info");
+                document.getElementById('auth-name-group').style.display = 'block';
+                const nameInput = document.getElementById('auth-nombre');
+                nameInput.value = data.nombre;
+                nameInput.disabled = true; // NOMBRE INMUTABLE
+                // El usuario ahora debe dar a "Continuar" con el nombre visible
+            }
         } else {
             // Nuevo usuario
             showToast("Primera vez en Voz Ciudadana. ¡Bienvenido!", "info");
             document.getElementById('auth-name-group').style.display = 'block';
+            const nameInput = document.getElementById('auth-nombre');
+            nameInput.disabled = false;
+            nameInput.value = '';
             // El usuario ahora debe llenar el nombre y volver a dar Continuar
         }
     } catch (e) {
@@ -518,7 +525,8 @@ function initCropper(input) {
                 });
             };
             reader.onerror = () => {
-                showToast("⚠️ Error de lectura. En Android, ve a Ajustes > Apps > Navegador > Permisos y activa 'Almacenamiento'.", "error", 7000);
+                showToast("⚠️ Error de lectura. Abre la ayuda para solucionar permisos.", "error");
+                mostrarAyudaPermisos();
             };
 
             reader.readAsDataURL(input.files[0]);
@@ -766,19 +774,29 @@ async function guardarPost(e) {
         comentarios: []
     };
 
+    // Live Update (Optimistic UI)
+    publicaciones.unshift(nuevoPost); // Agregamos al inicio localmente
+    actualizarFeed();
+    cerrarModal();
+    showToast("Publicando en tiempo real...", "info");
+
     try {
         const res = await fetch(`${API_URL}/posts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(nuevoPost)
         });
+
         const data = await res.json();
-        if (data.success) {
-            showToast("Publicación creada con éxito", "success");
-            cerrarModal();
-            e.target.reset();
-            cargarPublicaciones();
-        }
+
+        // Reemplazamos el post optimista con el real del servidor (para tener ID correcto)
+        publicaciones.shift();
+        publicaciones.unshift(data);
+        actualizarFeed(); // Re-render con ID real
+
+        showToast("¡Publicado con éxito!", "success");
+        e.target.reset();
+        document.getElementById('post-files').value = '';
     } catch (e) {
         showToast("Error al publicar", "error");
     }
@@ -865,21 +883,25 @@ function actualizarFeed() {
 // 3. COMENTARIOS Y VOTOS
 // =========================================
 
-async function votarPost(id) {
+async function votarPost(id, tipo) {
     if (!currentUser) {
         showToast("Debes iniciar sesión para votar", "warning");
         return abrirAuth();
     }
+
+    /* Voto Universal: Se elimina el chequeo de CI verificada para votar
     if (!currentUser.ci_verified) {
         showToast("Debes verificar tu identidad para votar.", "warning");
-        return abrirPerfil();
+        abrirPerfil();
+        return;
     }
+    */
 
     try {
         const res = await fetch(`${API_URL}/posts/${id}/vote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cedula: currentUser.cedula })
+            body: JSON.stringify({ tipo: tipo, cedula: currentUser.cedula })
         });
         const data = await res.json();
         if (data.success) {
