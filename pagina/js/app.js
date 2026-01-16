@@ -83,6 +83,43 @@ async function init() {
     }
 
     await cargarPublicaciones();
+    iniciarAutoSync();
+}
+
+let lastPollTimestamp = 0;
+function iniciarAutoSync() {
+    console.log("📡 Sincronización automática activada");
+    setInterval(async () => {
+        // 1. Protección contra escritura: Si el usuario teclea, no actualizamos
+        const activeElement = document.activeElement;
+        const isTyping = activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA");
+        if (isTyping) return;
+
+        // 2. Comprobación silenciosa
+        try {
+            const res = await fetch(`${API_URL}/posts`);
+            const data = await res.json();
+
+            // Lógica simple de detección de cambios (por longitud o ID del último)
+            // Para robustez total, reemplazamos el array pero mantenemos scroll si es posible
+            // (Si hay nuevos, se agregan arriba)
+
+            const hayCambios = JSON.stringify(data[0]?.id) !== JSON.stringify(publicaciones[0]?.id)
+                || data.length !== publicaciones.length
+                || JSON.stringify(data[0]?.votos) !== JSON.stringify(publicaciones[0]?.votos); // Cambio en votos
+
+            if (hayCambios) {
+                // Preservar posición de scroll relativa si es posible, o simplemente actualizar
+                // Si el usuario está leyendo muy abajo, actualizar feed puede saltar.
+                // Por ahora actualizamos todo para asegurar consistencia.
+                publicaciones = data;
+                actualizarFeed();
+                // Opcional: console.log("🔄 Feed actualizado automáticamente");
+            }
+        } catch (e) {
+            // Silencio en error de red (polling)
+        }
+    }, 6000); // Cada 6 segundos
 }
 
 // =========================================
