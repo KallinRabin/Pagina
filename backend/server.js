@@ -42,9 +42,7 @@ initDB();
 
 // Servir uploads (fotos)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // NOTA: Los archivos estáticos del frontend se cargarán al FINAL para no interferir con la API
-// (Mueve esta línea al final del archivo antes del app.listen)
 
 
 // ==========================================
@@ -389,21 +387,40 @@ app.post('/api/user/update', async (req, res) => {
 // ENDPOINTS POSTS
 // ==========================================
 
-// GET POSTS
+// GET POSTS (CON FILTROS REAL-TIME)
 app.get('/api/posts', async (req, res) => {
   try {
+    const { departamento, tipo } = req.query;
     const db = await openDB();
-    // Obtener posts activos con información del autor (JOIN)
-    // Usamos LEFT JOIN users para traer la foto actual y nombre oficial
-    const posts = await db.all(`
-        SELECT p.*, u.foto_perfil, u.rol as autor_rol, u.departamento as autor_depto, u.xp as autor_xp, u.cedula as autor_cedula
-        FROM posts p 
-        LEFT JOIN users u ON p.user_id = u.id 
-        WHERE p.deleted_at IS NULL 
-        ORDER BY p.votos_count DESC, p.id DESC
-    `);
 
-    // Cargar detalles (multimedia, comentarios, votos)
+    let query = `
+      SELECT p.*, u.nombre as autor_nombre, u.rol as autor_rol, 
+             u.foto_perfil as autor_foto, u.departamento as autor_depto,
+             u.xp as autor_xp
+      FROM posts p 
+      LEFT JOIN users u ON p.autor_email = u.email 
+      WHERE p.deleted_at IS NULL
+    `;
+
+    // Filtros Dinámicos (Solo si no es "todos" / "todas")
+    const params = [];
+
+    if (departamento && departamento !== 'todos') {
+      query += ' AND p.departamento = ?';
+      params.push(departamento);
+    }
+
+    if (tipo && tipo !== 'todas') {
+      query += ' AND p.tipo = ?';
+      params.push(tipo);
+    }
+
+    // Ordenar por votos y fecha
+    query += ' ORDER BY p.votos_count DESC, p.id DESC';
+
+    const posts = await db.all(query, params);
+
+    // Cargar detalles (multimedia, comentarios, votos) y enriquecer
     const enrichedPosts = await Promise.all(posts.map(async (p) => {
       // Multimedia
       const media = await db.all('SELECT tipo, data, id as mid FROM attachments WHERE post_id = ? AND deleted_at IS NULL', [p.id]);
@@ -416,11 +433,7 @@ app.get('/api/posts', async (req, res) => {
         ORDER BY c.votos_count DESC
       `, [p.id]);
 
-      // Adjuntar respuestas a comentarios
-      /* Lógica simplificada: en app.js ya maneja respuestas anidadas si hacemos un buen query, 
-         pero por ahora mandamos lista plana y el front lo arma si tienen parent_id,
-         o mejor, anidamos aquí. */
-
+      // Mapeo detallado de comentarios
       const commentsMap = comments.map(c => {
         const nivelInfo = calcularNivel(c.autor_xp || 0);
         return {
@@ -435,14 +448,14 @@ app.get('/api/posts', async (req, res) => {
         };
       });
 
-      // Cargar votosIds para comentarios (para saber si user votó)
+      // Cargar votosIds para comentarios
       for (let c of commentsMap) {
         const votes = await db.all("SELECT u.cedula FROM votes v JOIN users u ON v.user_id = u.id WHERE v.target_type='comment' AND v.target_id = ? AND v.deleted_at IS NULL", [c.id]);
         c.votosIds = votes.map(v => v.cedula);
         c.votos = c.votos_count;
       }
 
-      // Jerarquía básica para compatibilidad con código frontend anterior
+      // Jerarquía básica
       const rootComments = commentsMap.filter(c => !c.parent_id);
       const replies = commentsMap.filter(c => c.parent_id);
 
@@ -454,14 +467,14 @@ app.get('/api/posts', async (req, res) => {
       // Votos del Post
       const postVotes = await db.all("SELECT u.cedula FROM votes v JOIN users u ON v.user_id = u.id WHERE v.target_type='post' AND v.target_id = ? AND v.deleted_at IS NULL", [p.id]);
 
-      // Calcular nivel del autor
+      // Calcular nivel del autor del post
       const autorNivel = calcularNivel(p.autor_xp || 0);
 
       return {
         ...p,
-        id: p.id,
-        dept: p.departamento,
-        autor: p.autor_nombre,
+        id: p.id, // Ensure ID is passed down
+        dept: p.departamento, // Aliasing para consistencia
+        autor: p.autor_nombre || p.autor, // Fallback
         autor_foto: p.foto_perfil,
         autor_depto: p.autor_depto,
         autor_nivel: autorNivel.nombre_nivel,
@@ -749,7 +762,7 @@ app.post('/api/posts/:id/comment/:comId/vote', async (req, res) => {
 });
 
 // Servir frontend al final
-app.use(express.static(path.join(__dirname, '..', 'pagina')));
+app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
 app.listen(PORT, () => {
   console.log(`Servidor SQL Lite corriendo en http://localhost:${PORT}`);
