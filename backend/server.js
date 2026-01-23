@@ -398,7 +398,7 @@ app.get('/api/posts', async (req, res) => {
              u.foto_perfil as autor_foto, u.departamento as autor_depto,
              u.xp as autor_xp
       FROM posts p 
-      LEFT JOIN users u ON p.autor_email = u.email 
+      LEFT JOIN users u ON p.email_autor = u.email 
       WHERE p.deleted_at IS NULL
     `;
 
