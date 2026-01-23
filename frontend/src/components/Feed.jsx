@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import PostCard from './PostCard';
 
 export default function Feed() {
     const [posts, setPosts] = useState([]);
@@ -43,30 +44,7 @@ export default function Feed() {
                 <p style={{ textAlign: 'center', padding: '50px' }}>No hay publicaciones disponibles.</p>
             ) : (
                 posts.map(p => (
-                    <div key={p.id} className={`post type-${p.tipo || 'General'}`}>
-                        <div className="post-header-row">
-                            <div className="post-meta-group">
-                                <span className={`type-badge ${p.tipo || 'General'}`}>{p.tipo || 'General'}</span>
-                                <span className="meta-divider">|</span>
-                                <span className="post-author">{p.anonimo ? "Ciudadano Anónimo" : p.autor}</span>
-                                <span className="meta-dot">•</span>
-                                <span className="post-dept">{p.dept || p.departamento}</span>
-                            </div>
-                            {/* Status Pill logic here */}
-                        </div>
-
-                        <h3 className="post-title">{p.titulo}</h3>
-                        <p className="post-body">{p.contenido}</p>
-
-                        <div className="post-media-container">
-                            {/* Media render logic */}
-                        </div>
-
-                        {/* Votos y Comentarios Mock - Componentizar luego */}
-                        <div style={{ marginTop: 15, borderTop: '1px solid #eee', paddingTop: 10 }}>
-                            <small>Votos: {p.votos}</small>
-                        </div>
-                    </div>
+                    <PostCard key={p.id} post={p} />
                 ))
             )}
         </div>

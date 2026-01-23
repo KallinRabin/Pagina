@@ -64,6 +64,25 @@ export default function PostCard({ post }) {
         );
     };
 
+    const handleDelete = async () => {
+        if (!window.confirm("¿Seguro que quieres eliminar este post? Esta acción es irreversible.")) return;
+
+        try {
+            const res = await fetch(`/api/posts/${post.id}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                alert("Post eliminado");
+                window.location.reload();
+            } else {
+                alert("Error eliminando post");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de conexión");
+        }
+    };
+
     return (
         <div className={`post type-${post.tipo || 'General'}`}>
             <div className="post-layout">
@@ -119,7 +138,7 @@ export default function PostCard({ post }) {
                             <i className="fas fa-share"></i> Compartir
                         </span>
                         {currentUser?.rol === 'admin' && (
-                            <span style={{ color: 'red', cursor: 'pointer', marginLeft: 'auto' }}>
+                            <span onClick={handleDelete} style={{ color: 'red', cursor: 'pointer', marginLeft: 'auto' }} title="Eliminar como Admin">
                                 <i className="fas fa-trash"></i>
                             </span>
                         )}

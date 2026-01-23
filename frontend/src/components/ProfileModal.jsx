@@ -146,12 +146,25 @@ export default function ProfileModal({ isOpen, onClose }) {
                         <label>Departamento de Residencia</label>
                         <select value={departamento} onChange={e => setDepartamento(e.target.value)}>
                             <option value="">Selecciona tu departamento</option>
-                            <option value="Montevideo">Montevideo</option>
+                            <option value="Artigas">Artigas</option>
                             <option value="Canelones">Canelones</option>
+                            <option value="Cerro Largo">Cerro Largo</option>
+                            <option value="Colonia">Colonia</option>
+                            <option value="Durazno">Durazno</option>
+                            <option value="Flores">Flores</option>
+                            <option value="Florida">Florida</option>
+                            <option value="Lavalleja">Lavalleja</option>
                             <option value="Maldonado">Maldonado</option>
+                            <option value="Montevideo">Montevideo</option>
+                            <option value="Paysandú">Paysandú</option>
+                            <option value="Río Negro">Río Negro</option>
+                            <option value="Rivera">Rivera</option>
                             <option value="Rocha">Rocha</option>
                             <option value="Salto">Salto</option>
-                            {/* ... Resto */}
+                            <option value="San José">San José</option>
+                            <option value="Soriano">Soriano</option>
+                            <option value="Tacuarembó">Tacuarembó</option>
+                            <option value="Treinta y Tres">Treinta y Tres</option>
                         </select>
                     </div>
 

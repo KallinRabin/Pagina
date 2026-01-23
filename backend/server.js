@@ -140,6 +140,32 @@ app.get('/api/auth/check-ci/:cedula', async (req, res) => {
 });
 
 // 2. Opciones para registrar una nueva Passkey (Registro)
+// Endpoint SIMPLE para registro (React Migration)
+app.post('/api/auth/register-simple', async (req, res) => {
+  const { cedula, nombre } = req.body;
+  if (!validarCI(cedula)) return res.json({ error: "Cédula inválida" });
+
+  try {
+    const db = await openDB();
+    // Verificar si ya existe
+    const existing = await db.get('SELECT id FROM users WHERE cedula = ?', [cedula]);
+    if (existing) {
+      // Actualizar nombre si es necesario
+      await db.run('UPDATE users SET nombre = ? WHERE id = ?', [nombre, existing.id]);
+      return res.json({ success: true, id: existing.id });
+    }
+
+    // Insertar nuevo
+    const result = await db.run(
+      'INSERT INTO users (cedula, nombre, rol, xp, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+      [cedula, nombre, 'ciudadano', 0]
+    );
+    res.json({ success: true, id: result.lastID });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/auth/register-options', async (req, res) => {
   const { cedula, nombre } = req.body;
 

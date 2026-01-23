@@ -10,6 +10,7 @@ export default function AuthModal({ isOpen, mode, onClose, switchMode }) {
     const [clicksTitle, setClicksTitle] = useState(0);
     const [showMaster, setShowMaster] = useState(false);
     const [checkData, setCheckData] = useState(null); // Data del check-ci
+    const [ciFile, setCiFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
     if (!isOpen) return null;
@@ -30,6 +31,7 @@ export default function AuthModal({ isOpen, mode, onClose, switchMode }) {
         setClicksTitle(0);
         setShowMaster(false);
         setCheckData(null);
+        setCiFile(null);
     }
 
     const handleClose = () => {
@@ -67,21 +69,14 @@ export default function AuthModal({ isOpen, mode, onClose, switchMode }) {
                     setLoading(false);
                     return;
                 }
-                // Si existe, pre-llenar nombre (aunque no se pide en login directo, se usa para display)
                 setNombre(data.nombre);
                 setStep(2); // Ir a Biometría/Continuar
             } else {
                 // Registro
                 if (data.exists) {
                     alert("Esta cédula ya está registrada. Por favor inicia sesión.");
-                    // switchMode('log') // Opcional
                     setLoading(false);
                     return;
-                }
-                // Nuevo usuario: Mostrar campo nombre
-                // En este diseño simplificado, pedimos nombre aquí mismo si es nuevo
-                if (!nombre && !document.getElementById('auth-nombre-input')) {
-                    // Hack rápido: forzar UI de nombre si no estaba visible (manejado por render abajo)
                 }
                 setStep(1.5); // Estado intermedio "Ingresa Nombre"
             }
@@ -92,32 +87,71 @@ export default function AuthModal({ isOpen, mode, onClose, switchMode }) {
         setLoading(false);
     };
 
-    const handleRegistroSubmit = async () => {
+    const handleRegisterSimple = async () => {
         if (!nombre) return alert("Ingresa tu nombre");
-        // Simular paso a biometría o registro directo (Simplificado React Beta)
-        // En producción real portaríamos WebAuthn aquí. 
-        // Por ahora: Registro Exitoso Mock
+        setLoading(true);
 
-        const newUser = {
-            email: `${cedula}@ciudadano.uy`,
-            nombre: nombre,
-            cedula: cedula,
-            rol: 'ciudadano',
-            foto_perfil: null,
-            fecha_registro: new Date().toISOString()
-        };
+        try {
+            // Crear usuario en BD
+            const res = await fetch('/api/auth/register-simple', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cedula, nombre })
+            });
 
-        // Enviar a backend real de registro (pendiente portar endpoint completo passwordless)
-        // Por ahora simulamos login directo
-        login(newUser);
-        handleClose();
+            if (res.ok) {
+                // Registro OK, ir a verificación
+                setStep(1.8);
+            } else {
+                alert("Error creando usuario");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de registro");
+        }
+        setLoading(false);
     };
 
-    const handleLoginSubmit = async () => {
-        // Login exitoso mock (sin biometría real en este paso aún)
+    const handleVerifyCI = async () => {
+        if (!ciFile) return alert("Sube una foto de tu cédula");
+        setLoading(true);
+
+        try {
+            // Convertir a Base64
+            const reader = new FileReader();
+            reader.readAsDataURL(ciFile);
+            reader.onload = async () => {
+                const fotoBase64 = reader.result;
+
+                const res = await fetch('/api/user/verify-ci', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cedula,
+                        fotoCI: fotoBase64,
+                        nombreExtraido: nombre // Simulamos OCR exitoso con el nombre ingresado
+                    })
+                });
+
+                if (res.ok) {
+                    alert("¡Identidad Verificada Correctamente!");
+                    finishLogin();
+                } else {
+                    alert("Error verificando identidad");
+                }
+                setLoading(false);
+            };
+        } catch (e) {
+            console.error(e);
+            alert("Error procesando imagen");
+            setLoading(false);
+        }
+    };
+
+    const finishLogin = () => {
         login({
             email: `${cedula}@ciudadano.uy`,
-            nombre: checkData?.nombre || 'Usuario',
+            nombre: nombre || checkData?.nombre || 'Usuario',
             cedula: cedula,
             rol: 'ciudadano',
             foto_perfil: null
@@ -173,9 +207,34 @@ export default function AuthModal({ isOpen, mode, onClose, switchMode }) {
                                 style={{ textAlign: 'center' }}
                             />
                         </div>
-                        <button className="btn-register" style={{ width: '100%', marginTop: 20 }} onClick={handleRegistroSubmit}>
-                            Crear Identidad
+                        <button className="btn-register" style={{ width: '100%', marginTop: 20 }} onClick={handleRegisterSimple}>
+                            {loading ? 'Registrando...' : 'Crear Identidad'}
                         </button>
+                    </>
+                )}
+
+                {step === 1.8 && (
+                    <>
+                        <h2>Verifica tu Identidad 🛡️</h2>
+                        <p style={{ fontSize: '0.9rem', color: '#666' }}>Sube una foto de tu Cédula para validar tu cuenta (Opcional por ahora).</p>
+
+                        <div style={{ margin: '20px 0', border: '2px dashed #ccc', padding: 20, borderRadius: 10 }}>
+                            <i className="fas fa-camera" style={{ fontSize: '2rem', color: '#ccc', marginBottom: 10 }}></i>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={(e) => setCiFile(e.target.files[0])}
+                                style={{ display: 'block', margin: '10px auto' }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button className="btn-cancel" style={{ flex: 1 }} onClick={finishLogin}>Omitir</button>
+                            <button className="btn-submit" style={{ flex: 1 }} onClick={handleVerifyCI} disabled={!ciFile || loading}>
+                                {loading ? 'Validando...' : 'Verificar Ahora'}
+                            </button>
+                        </div>
                     </>
                 )}
 
@@ -186,7 +245,7 @@ export default function AuthModal({ isOpen, mode, onClose, switchMode }) {
                         <div style={{ fontSize: '4rem', color: '#0056b3', margin: '20px 0' }}>
                             <i className="fas fa-fingerprint"></i>
                         </div>
-                        <button className="btn-submit" style={{ width: '100%' }} onClick={handleLoginSubmit}>
+                        <button className="btn-submit" style={{ width: '100%' }} onClick={finishLogin}>
                             Biometría (Simulada)
                         </button>
                     </>

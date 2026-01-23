@@ -31,30 +31,39 @@ export default function CreatePostModal({ isOpen, onClose, initialType }) {
         setLoading(true);
 
         try {
-            const formData = new FormData();
-            formData.append('tipo', tipo);
-            formData.append('titulo', titulo);
-            formData.append('contenido', contenido);
-            formData.append('departamento', departamento);
-            formData.append('anonimo', anonimo ? 'true' : 'false');
-            formData.append('autor', currentUser.nombre);
-            formData.append('email_autor', currentUser.email);
-            // formData.append('autor_email', currentUser.email); // Corregido en backend a email_autor, enviar ambos por si acaso o solo correcto
-            // Mejor enviar 'autor_email' que es lo que espera SQL originalmente, pero corregimos 'server.js' para JOIN p.email_autor.
-            // El INSERT en server.js linea 507 no menciona email, espera...
-            // Checking server.js INSERT: "INSERT INTO posts (..., email_autor, ...)" -> Lo añadimos? 
-            // linea 534 server.js (approx): "INSERT INTO posts ... email_autor ..." - espera, voy a revisar server.js si inserta email_autor
-            // Asumiré que sí por ahora.
+            // Convertir archivos a Base64
+            const mediaPromises = Array.from(mediaFiles).map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve({
+                        tipo: file.type.startsWith('video/') ? 'video' : 'image', // Simplificado
+                        data: reader.result
+                    });
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            });
 
-            formData.append('autor_rol', currentUser.rol || 'ciudadano');
+            const multimedia = await Promise.all(mediaPromises);
 
-            for (let i = 0; i < mediaFiles.length; i++) {
-                formData.append('media', mediaFiles[i]);
-            }
+            const payload = {
+                tipo,
+                titulo,
+                contenido,
+                dept: departamento,
+                departamento: departamento,
+                autor: currentUser.nombre,
+                cedulaAutor: currentUser.cedula,
+                email_autor: currentUser.email, // Updated to match server expectation if needed
+                autor_rol: currentUser.rol || 'ciudadano',
+                anonimo,
+                multimedia
+            };
 
             const res = await fetch('/api/posts', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
             if (res.ok) {
@@ -62,7 +71,8 @@ export default function CreatePostModal({ isOpen, onClose, initialType }) {
                 onClose();
                 window.location.reload();
             } else {
-                alert("Error al crear publicación");
+                const err = await res.json();
+                alert("Error al crear publicación: " + (err.error || "Desconocido"));
             }
         } catch (error) {
             console.error(error);
@@ -99,12 +109,25 @@ export default function CreatePostModal({ isOpen, onClose, initialType }) {
                     <div className="input-group">
                         <label>Departamento</label>
                         <select value={departamento} onChange={e => setDepartamento(e.target.value)}>
-                            <option value="Montevideo">Montevideo</option>
+                            <option value="Artigas">Artigas</option>
                             <option value="Canelones">Canelones</option>
+                            <option value="Cerro Largo">Cerro Largo</option>
+                            <option value="Colonia">Colonia</option>
+                            <option value="Durazno">Durazno</option>
+                            <option value="Flores">Flores</option>
+                            <option value="Florida">Florida</option>
+                            <option value="Lavalleja">Lavalleja</option>
                             <option value="Maldonado">Maldonado</option>
+                            <option value="Montevideo">Montevideo</option>
+                            <option value="Paysandú">Paysandú</option>
+                            <option value="Río Negro">Río Negro</option>
+                            <option value="Rivera">Rivera</option>
                             <option value="Rocha">Rocha</option>
                             <option value="Salto">Salto</option>
-                            {/* Agregar resto */}
+                            <option value="San José">San José</option>
+                            <option value="Soriano">Soriano</option>
+                            <option value="Tacuarembó">Tacuarembó</option>
+                            <option value="Treinta y Tres">Treinta y Tres</option>
                         </select>
                     </div>
 
