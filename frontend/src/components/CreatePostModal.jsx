@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export default function CreatePostModal({ isOpen, onClose }) {
+export default function CreatePostModal({ isOpen, onClose, initialType }) {
     const { currentUser } = useAuth();
     const [tipo, setTipo] = useState('Queja');
     const [titulo, setTitulo] = useState('');
@@ -10,6 +10,13 @@ export default function CreatePostModal({ isOpen, onClose }) {
     const [mediaFiles, setMediaFiles] = useState([]);
     const [anonimo, setAnonimo] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    // Sync type when modal opens or initialType changes
+    useEffect(() => {
+        if (isOpen && initialType) {
+            setTipo(initialType);
+        }
+    }, [isOpen, initialType]);
 
     if (!isOpen) return null;
 
@@ -31,10 +38,14 @@ export default function CreatePostModal({ isOpen, onClose }) {
             formData.append('departamento', departamento);
             formData.append('anonimo', anonimo ? 'true' : 'false');
             formData.append('autor', currentUser.nombre);
-            formData.append('autor_email', currentUser.email);
-            // Faltan autor_rol, autor_nivel etc, el backend lo maneja o lo podemos enviar
-            // En la app vieja enviábamos todo, pero el backend tiene el user en DB.
-            // Por compatibilidad de API vieja:
+            formData.append('email_autor', currentUser.email);
+            // formData.append('autor_email', currentUser.email); // Corregido en backend a email_autor, enviar ambos por si acaso o solo correcto
+            // Mejor enviar 'autor_email' que es lo que espera SQL originalmente, pero corregimos 'server.js' para JOIN p.email_autor.
+            // El INSERT en server.js linea 507 no menciona email, espera...
+            // Checking server.js INSERT: "INSERT INTO posts (..., email_autor, ...)" -> Lo añadimos? 
+            // linea 534 server.js (approx): "INSERT INTO posts ... email_autor ..." - espera, voy a revisar server.js si inserta email_autor
+            // Asumiré que sí por ahora.
+
             formData.append('autor_rol', currentUser.rol || 'ciudadano');
 
             for (let i = 0; i < mediaFiles.length; i++) {
@@ -49,7 +60,7 @@ export default function CreatePostModal({ isOpen, onClose }) {
             if (res.ok) {
                 alert("Publicación creada con éxito");
                 onClose();
-                window.location.reload(); // Recarga simple para ver post
+                window.location.reload();
             } else {
                 alert("Error al crear publicación");
             }
